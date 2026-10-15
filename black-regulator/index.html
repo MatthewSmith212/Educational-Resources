@@ -1,0 +1,2030 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Black Regulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A component-by-component, phase-by-phase explanation of Roman Black's two-transistor self-oscillating buck regulator, with a live simulator and an exhaustive question-and-answer section.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: a long-form engineering notebook. Sticky contents rail on the left, one reading column,
+   figures allowed to run wider than the text. Colours borrowed from the bench: drafting-film grey,
+   copper for the power path, and one hue per signal that stays the same in every figure. */
+:root {
+  --bg: #eef1ef;
+  --surface: #fbfcfb;
+  --sunk: #e3e8e5;
+  --ink: #18211f;
+  --muted: #55625e;
+  --line: #c4cdc9;
+  --accent: #a84b17;          /* copper: the power path, links */
+  --accent-soft: #f3dfd2;
+  --sig-a: #1d63a8;           /* node A, the switch node */
+  --sig-z: #7a3aa6;           /* node Z, Q2's base */
+  --sig-il: #a84b17;          /* inductor current */
+  --sig-vo: #1f7a50;          /* output voltage */
+  --sig-be: #b07d00;          /* Q2 base-emitter voltage */
+  --p-major: #d0601f;
+  --p-drive: #2f78c4;
+  --p-reg: #c39a00;
+  --p-zen: #b3243a;
+  --p-cap: #7d43b3;
+  --warn: #9b2c1c;
+  --warn-soft: #f6dcd6;
+  --ok: #1f7a50;
+  --wire: #2a3533;
+  --font-display: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --step--1: 0.875rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.25rem;
+  --step-2: 1.6rem;
+  --step-3: 2.2rem;
+  --step-4: clamp(2.6rem, 6vw, 4.4rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111716; --surface: #18201f; --sunk: #0c1110; --ink: #e2e9e6; --muted: #9aa9a4; --line: #2f3c39;
+    --accent: #e48a55; --accent-soft: #3a2519;
+    --sig-a: #6fa9e6; --sig-z: #c08ae6; --sig-il: #e48a55; --sig-vo: #5cc493; --sig-be: #e2b84a;
+    --p-major: #ee8445; --p-drive: #5aa0ea; --p-reg: #e2c03a; --p-zen: #ee5c72; --p-cap: #b585ea;
+    --warn: #f08a76; --warn-soft: #3b1d17; --ok: #5cc493; --wire: #c9d3cf;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111716; --surface: #18201f; --sunk: #0c1110; --ink: #e2e9e6; --muted: #9aa9a4; --line: #2f3c39;
+  --accent: #e48a55; --accent-soft: #3a2519;
+  --sig-a: #6fa9e6; --sig-z: #c08ae6; --sig-il: #e48a55; --sig-vo: #5cc493; --sig-be: #e2b84a;
+  --p-major: #ee8445; --p-drive: #5aa0ea; --p-reg: #e2c03a; --p-zen: #ee5c72; --p-cap: #b585ea;
+  --warn: #f08a76; --warn-soft: #3b1d17; --ok: #5cc493; --wire: #c9d3cf;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.62;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+img { max-width: 100%; height: auto; }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; line-height: 1.12; margin: 0; }
+h2 { font-size: var(--step-3); font-weight: 750; font-stretch: 78%; letter-spacing: -0.01em; }
+h3 { font-size: var(--step-2); font-weight: 700; font-stretch: 85%; }
+h4 { font-size: var(--step-1); font-weight: 650; font-stretch: 92%; }
+p { margin: 0; }
+code, kbd, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+var { font-style: italic; font-family: var(--font-body); }
+sub { font-size: 0.72em; }
+abbr { text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* page frame */
+.frame {
+  max-width: 1240px; margin: 0 auto;
+  display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 56px;
+  padding-block: 0 96px;
+}
+.toc {
+  position: sticky; top: env(safe-area-inset-top, 0px); align-self: start;
+  max-height: 100vh; overflow-y: auto; padding-block: 32px 24px;
+  font-family: var(--font-display); font-size: 0.9rem; font-stretch: 92%;
+}
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc ol ol { padding-left: 12px; margin-block: 2px 6px; }
+.toc a { color: var(--muted); text-decoration: none; display: block; padding: 3px 8px; border-radius: 4px; border-left: 2px solid transparent; }
+.toc a:hover { color: var(--ink); background: var(--sunk); }
+.toc a.on { color: var(--ink); border-left-color: var(--accent); background: var(--sunk); }
+.toc .part { margin-top: 14px; color: var(--muted); font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding-left: 8px; }
+.toc-mobile { display: none; }
+
+main { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 72px; padding-top: 40px; }
+section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; }
+.prose { max-width: 70ch; display: grid; gap: 16px; }
+.prose ul, .prose ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+.wide { max-width: 980px; }
+.sec-head { display: grid; gap: 8px; max-width: 70ch; }
+.sec-head .eyebrow { color: var(--accent); }
+
+/* hero */
+.hero { display: grid; gap: 20px; padding-top: 8px; }
+.hero h1 { font-size: var(--step-4); font-weight: 800; font-stretch: 68%; letter-spacing: -0.02em; line-height: 0.95; }
+.hero h1 span { display: block; font-size: 0.42em; font-weight: 500; font-stretch: 100%; letter-spacing: 0; color: var(--muted); margin-top: 0.5em; line-height: 1.2; }
+.lede { font-size: 1.22rem; line-height: 1.55; max-width: 62ch; }
+.spec-strip { display: flex; flex-wrap: wrap; gap: 8px 22px; font-family: var(--font-mono); font-size: 0.84rem; color: var(--muted); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 10px; }
+.spec-strip b { color: var(--ink); font-weight: 600; }
+
+/* callouts */
+.note { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; max-width: 70ch; }
+.note.key { border-color: var(--accent); background: var(--accent-soft); }
+.note.warn { border-color: var(--warn); background: var(--warn-soft); }
+.note > .eyebrow { color: var(--accent); }
+.note.warn > .eyebrow { color: var(--warn); }
+
+/* equations */
+.eq {
+  font-family: var(--font-body); font-size: 1.12rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 12px 18px; overflow-x: auto; max-width: 70ch; display: grid; gap: 4px;
+}
+.eq .where { font-size: 0.92rem; color: var(--muted); }
+.frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 0.15em; line-height: 1.15; }
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 0.2em; }
+.frac > span:last-child { padding: 0 0.2em; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-display); font-weight: 650; font-stretch: 90%; background: var(--sunk); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.86rem; white-space: nowrap; }
+td .mono { white-space: nowrap; }
+
+/* schematic */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.schem-box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.schem-box svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.schem .w { stroke: var(--wire); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.schem .body { fill: var(--surface); stroke: var(--wire); stroke-width: 2; }
+.schem .solid { fill: var(--wire); stroke: none; }
+.schem .dot { fill: var(--wire); }
+.schem .lbl { font-family: var(--font-mono); font-size: 13px; fill: var(--ink); }
+.schem .lbl-s { font-family: var(--font-mono); font-size: 11px; fill: var(--muted); }
+.schem .node { font-family: var(--font-display); font-weight: 800; font-size: 17px; fill: var(--accent); }
+.schem .volt { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; }
+.schem .volt-bg { fill: var(--surface); opacity: 0.9; }
+.schem .part { cursor: pointer; }
+.schem .part:hover .body, .schem .part.sel .body { stroke: var(--accent); }
+.schem .part:hover .w, .schem .part.sel .w { stroke: var(--accent); }
+.schem .part .hit { fill: transparent; stroke: none; }
+.schem .load .body { stroke-dasharray: 5 4; }
+.flow { fill: none; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.38; }
+.flow-ants { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 11; animation: ants 0.9s linear infinite; }
+@keyframes ants { to { stroke-dashoffset: -14; } }
+@media (prefers-reduced-motion: reduce) { .flow-ants { animation: none; } }
+
+.phase-panel { display: grid; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.phase-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.btn {
+  font-family: var(--font-display); font-weight: 650; font-stretch: 88%; font-size: 0.92rem;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 5px; padding: 7px 10px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.phase-btns .btn { padding: 6px 4px; line-height: 1.15; }
+.phase-btns .btn small { display: block; font-weight: 500; font-size: 0.72rem; opacity: 0.8; }
+.phase-title { font-family: var(--font-display); font-weight: 750; font-stretch: 85%; font-size: 1.15rem; }
+.phase-text { font-size: 0.95rem; line-height: 1.5; display: grid; gap: 8px; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.88rem; line-height: 1.35; }
+.legend li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
+.legend i { display: block; height: 6px; border-radius: 3px; margin-top: 0.45em; }
+.part-info { border-top: 1px solid var(--line); padding-top: 12px; font-size: 0.92rem; line-height: 1.5; display: grid; gap: 6px; }
+.part-info b { font-family: var(--font-display); font-stretch: 90%; font-size: 1rem; }
+.hint { font-size: 0.84rem; color: var(--muted); }
+
+/* phase cards */
+.phase-grid { display: grid; gap: 40px; }
+.phase-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.phase-card figure { margin: 0; background: #ffffff; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.phase-card figure img { display: block; width: 100%; }
+figcaption { font-size: 0.82rem; color: var(--muted); padding-top: 6px; font-family: var(--font-body); }
+.phase-card .prose { gap: 12px; }
+.phase-num { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent); letter-spacing: 0.1em; }
+.state { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 0.9rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; }
+.state dt { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+.state dd { margin: 0; }
+
+/* simulator */
+.sim { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
+.controls { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.ctl { display: grid; gap: 2px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-display); font-stretch: 90%; font-size: 0.9rem; font-weight: 600; }
+.ctl output { font-family: var(--font-mono); font-weight: 500; font-size: 0.84rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.ctl .hint { font-size: 0.76rem; line-height: 1.3; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets .btn { font-size: 0.8rem; padding: 5px 8px; }
+.scope { display: grid; gap: 14px; min-width: 0; }
+.readout { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.readout div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 2px; }
+.readout span { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.readout b { font-family: var(--font-mono); font-size: 1.02rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.plots { background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 4px; }
+.plots canvas { display: block; width: 100%; height: 520px; }
+.plots canvas.startup { height: 190px; }
+.warns { display: grid; gap: 6px; }
+.warns:empty { display: none; }
+.warns p { background: var(--warn-soft); border: 1px solid var(--warn); color: var(--ink); border-radius: 6px; padding: 8px 12px; font-size: 0.9rem; }
+.status { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+
+/* FAQ */
+.faq-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); }
+.faq-tools input[type=search] {
+  flex: 1 1 260px; min-width: 0; font: inherit; font-size: 0.98rem; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.faq-count { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+.faq-group { display: grid; gap: 8px; }
+.faq-group > h3 { margin-top: 26px; margin-bottom: 6px; }
+.faq-group > p.hint { margin-bottom: 6px; max-width: 70ch; }
+details.q { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; max-width: 80ch; }
+details.q > summary {
+  cursor: pointer; list-style: none; padding: 11px 16px 11px 40px; position: relative;
+  font-family: var(--font-display); font-weight: 650; font-stretch: 92%; font-size: 1.02rem; line-height: 1.3;
+}
+details.q > summary::-webkit-details-marker { display: none; }
+details.q > summary::before {
+  content: "+"; position: absolute; left: 14px; top: 9px; font-family: var(--font-mono); font-weight: 600; color: var(--accent); font-size: 1.1rem;
+}
+details.q[open] > summary::before { content: "\2212"; }
+details.q[open] > summary { border-bottom: 1px solid var(--line); }
+details.q .a { padding: 14px 18px 16px 40px; display: grid; gap: 12px; font-size: 0.99rem; }
+details.q .a ul, details.q .a ol { margin: 0; padding-left: 1.2em; display: grid; gap: 5px; }
+mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
+
+/* glossary */
+dl.gloss { display: grid; grid-template-columns: minmax(120px, 210px) minmax(0, 1fr); gap: 10px 22px; margin: 0; max-width: 900px; }
+dl.gloss dt { font-family: var(--font-display); font-weight: 700; font-stretch: 90%; }
+dl.gloss dd { margin: 0; }
+
+/* gallery */
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 18px; max-width: 980px; }
+.gallery figure { min-width: 0; margin: 0; display: grid; gap: 6px; align-content: start; }
+.gallery figure img { border-radius: 6px; border: 1px solid var(--line); background: #ffffff; display: block; width: 100%; }
+
+footer { border-top: 1px solid var(--line); padding-top: 18px; font-size: 0.9rem; color: var(--muted); max-width: 80ch; display: grid; gap: 8px; }
+
+@media (max-width: 1080px) {
+  .bench, .sim { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .frame { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { display: none; }
+  .toc-mobile { display: block; margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .toc-mobile summary { cursor: pointer; padding: 10px 14px; font-family: var(--font-display); font-weight: 650; }
+  .toc-mobile ol { margin: 0; padding: 4px 16px 14px 34px; display: grid; gap: 4px; font-size: 0.95rem; }
+  .phase-card { grid-template-columns: minmax(0, 1fr); }
+  main { gap: 56px; padding-top: 24px; }
+  dl.gloss { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  dl.gloss dd { margin-bottom: 10px; }
+  .plots canvas { height: 470px; }
+}
+@media (max-width: 480px) {
+  .phase-btns { grid-template-columns: repeat(2, 1fr); }
+  details.q > summary { padding-left: 34px; }
+  details.q .a { padding-left: 18px; }
+}
+</style>
+</head>
+<body>
+<div class="frame">
+
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li class="part">Part I &middot; How it works</li>
+    <li><a href="#short">The short version</a></li>
+    <li><a href="#circuit">The circuit, part by part</a></li>
+    <li><a href="#cycle">One cycle in four phases</a></li>
+    <li><a href="#why5">Why the output lands at 5 V</a></li>
+    <li><a href="#c2">C2: the part that makes it switch</a></li>
+    <li><a href="#numbers">Frequency, duty, ripple</a></li>
+    <li><a href="#sim">Watch it run</a></li>
+    <li><a href="#limits">Where it stops working</a></li>
+    <li><a href="#scope">The original scope photos</a></li>
+    <li class="part">Part II &middot; Questions</li>
+    <li><a href="#faq">All questions</a>
+      <ol>
+        <li><a href="#faq-reading">Reading the drawings</a></li>
+        <li><a href="#faq-basics">Concepts from zero</a></li>
+        <li><a href="#faq-parts">Each part's job</a></li>
+        <li><a href="#faq-cycle">The switching cycle</a></li>
+        <li><a href="#faq-numbers">Numbers and performance</a></li>
+        <li><a href="#faq-build">Building and testing</a></li>
+        <li><a href="#faq-modify">Changing it</a></li>
+        <li><a href="#faq-fail">Failure and safety</a></li>
+        <li><a href="#faq-context">Context and comparisons</a></li>
+      </ol>
+    </li>
+    <li class="part">Part III &middot; Reference</li>
+    <li><a href="#design">Worked design example</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+    <li><a href="#originals">Original drawings</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero" id="top">
+  <p class="eyebrow">Self-oscillating buck converter &middot; two transistors, no IC, no clock</p>
+  <h1>The Black Regulator<span>How Roman Black's two-transistor switch-mode supply turns 14&nbsp;V into 5&nbsp;V, explained down to the last electron.</span></h1>
+  <p class="lede">Two cheap transistors, a zener, an inductor and a handful of capacitors and resistors make a switching regulator that oscillates by itself, needs no timing chip, and wastes far less power than a linear regulator would. This page explains exactly how, first in one continuous argument, then through every question a newcomer is likely to ask.</p>
+  <div class="spec-strip">
+    <span><b>Topology</b> buck (step-down)</span>
+    <span><b>Control</b> hysteretic / constant off-time</span>
+    <span><b>Q1</b> BC327 PNP switch</span>
+    <span><b>Q2</b> BC337 NPN comparator</span>
+    <span><b>In</b> +14 V</span>
+    <span><b>Out</b> +5 V regulated</span>
+  </div>
+  <details class="toc-mobile">
+    <summary>Contents</summary>
+    <ol>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#circuit">The circuit, part by part</a></li>
+      <li><a href="#cycle">One cycle in four phases</a></li>
+      <li><a href="#why5">Why the output lands at 5 V</a></li>
+      <li><a href="#c2">C2: the part that makes it switch</a></li>
+      <li><a href="#numbers">Frequency, duty, ripple</a></li>
+      <li><a href="#sim">Watch it run</a></li>
+      <li><a href="#limits">Where it stops working</a></li>
+      <li><a href="#scope">The original scope photos</a></li>
+      <li><a href="#faq">Questions (all of them)</a></li>
+      <li><a href="#design">Worked design example</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+      <li><a href="#originals">Original drawings</a></li>
+    </ol>
+  </details>
+</header>
+
+<!-- ============================================================ PART I -->
+
+<section id="short">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 1</p>
+    <h2>The short version</h2>
+  </div>
+  <div class="prose">
+    <p><strong>Q1</strong> is a switch between the 14&nbsp;V supply and an inductor, <strong>L1</strong>. When Q1 is on, current builds up in L1 and flows on into the output capacitor and the load, so the output voltage rises. When Q1 is off, the inductor keeps the current flowing anyway, pulling it up from ground through the diode <strong>D1</strong>, so the output slowly falls. Switching Q1 on and off quickly, and choosing the right fraction of time it spends on, holds the output at an average of 5&nbsp;V. That part is an ordinary buck converter.</p>
+    <p>What makes this circuit unusual is how it decides when to switch. <strong>Q2</strong> has its base held at a fixed reference by the zener diode (node <strong>Z</strong>, about 5.6&nbsp;V) and its emitter connected straight to the output. Q2 therefore compares the output with the reference. It conducts when the output is more than about 0.6&nbsp;V below the zener voltage, and stops conducting when the output climbs past that point. Q2 conducting pulls base current out of Q1 through R2, which turns Q1 on. So: output low &rarr; Q2 on &rarr; Q1 on &rarr; output rises &rarr; Q2 off &rarr; Q1 off &rarr; output falls &rarr; and around again.</p>
+    <p>A comparator built from one transistor is slow and soft, and on its own would let Q1 hover half-on, getting hot. Capacitor <strong>C2</strong> fixes that. It connects the switching node <strong>A</strong> (which swings the full 14&nbsp;V every time Q1 switches) back to Q2's base. When Q1 begins to turn off, A falls, C2 drags Q2's base down with it, and Q2 is turned off harder: <em>positive feedback</em>, which makes the switching snap rather than drift. The same kick leaves node Z sitting about a volt below the zener voltage, and it takes a few microseconds for <strong>RZ</strong> to recharge C1 and C2 back up. Until it does, Q2 cannot turn on again no matter what the output does. That built-in pause is the off-time, and it sets the switching frequency.</p>
+  </div>
+  <div class="note key">
+    <p class="eyebrow">The whole circuit in one sentence</p>
+    <p>A transistor comparator (Q2) watches the output against a zener reference and drives a transistor switch (Q1) into an LC filter, while a small capacitor (C2) feeds each switching edge back to the comparator so that every transition snaps cleanly and every off period lasts a predictable few microseconds.</p>
+  </div>
+  <div class="prose">
+    <p>Everything below elaborates on those three paragraphs. If you only want the mechanism, read Part&nbsp;I. If something in it raised a question, Part&nbsp;II almost certainly answers it.</p>
+  </div>
+  <div class="note">
+    <p class="eyebrow">About the numbers on this page</p>
+    <p>The original drawings name the transistors and show the topology but print no resistor, capacitor or inductor values. To make the explanation concrete, this page uses one consistent <strong>representative set</strong>: RZ&nbsp;=&nbsp;1&nbsp;k&Omega;, zener 5.6&nbsp;V, C1&nbsp;=&nbsp;47&nbsp;nF, C2&nbsp;=&nbsp;4.7&nbsp;nF, R1&nbsp;=&nbsp;1&nbsp;k&Omega;, R2&nbsp;=&nbsp;470&nbsp;&Omega;, L1&nbsp;=&nbsp;220&nbsp;&micro;H, CLOAD&nbsp;=&nbsp;220&nbsp;&micro;F, D1 a 1N5819 Schottky, and a 20&nbsp;&Omega; load (250&nbsp;mA). They are chosen to be sensible and to make the arithmetic easy to follow. They are not a transcription of the original build. The <a href="#design">worked design example</a> shows how each one was picked, so you can pick your own.</p>
+  </div>
+</section>
+
+<section id="circuit">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 2</p>
+    <h2>The circuit, part by part</h2>
+    <p>Redrawn from the original with the same names and node letters. Click any component for its job. Pick a phase to see where current flows during it, and what voltage each node sits at.</p>
+  </div>
+
+  <div class="bench">
+    <div class="schem-box">
+      <svg class="schem" id="schem" viewBox="0 0 760 450" role="img" aria-labelledby="schem-t schem-d">
+        <title id="schem-t">Black regulator schematic</title>
+        <desc id="schem-d">RZ feeds zener and C1 at node Z, which is Q2's base. Q2's emitter goes to the output, its collector through R2 to Q1's base, which R1 pulls up to the supply. Q1, a PNP, switches the supply onto node A. D1 runs from ground up to A. L1 runs from A to the output node B, where CLOAD and the load connect. C2 connects node Z to node A.</desc>
+        <g id="flows"></g>
+
+        <!-- supply and ground rails -->
+        <path class="w" d="M40,50 H450"/>
+        <path class="w" d="M40,420 H700"/>
+        <circle cx="40" cy="50" r="4" class="body"/>
+        <circle cx="40" cy="420" r="4" class="body"/>
+        <text class="lbl" x="34" y="36">+14 V in</text>
+        <text class="lbl" x="34" y="442">Gnd</text>
+
+        <!-- RZ -->
+        <g class="part" data-part="RZ">
+          <rect class="hit" x="70" y="55" width="40" height="200"/>
+          <path class="w" d="M90,50 V100 M90,160 V260"/>
+          <rect class="body" x="81" y="100" width="18" height="60" rx="1"/>
+          <text class="lbl" x="104" y="135">RZ</text>
+        </g>
+
+        <!-- zener -->
+        <g class="part" data-part="ZENER">
+          <rect class="hit" x="66" y="265" width="48" height="150"/>
+          <path class="w" d="M90,260 V330 M90,352 V420"/>
+          <polygon class="solid" points="78,352 102,352 90,332"/>
+          <path class="w" d="M76,326 L78,332 H102 L104,338"/>
+          <text class="lbl-s" transform="translate(116,392) rotate(-90)">ZENER</text>
+        </g>
+
+        <!-- C1 -->
+        <g class="part" data-part="C1">
+          <rect class="hit" x="138" y="265" width="44" height="150"/>
+          <path class="w" d="M160,260 V334 M160,346 V420"/>
+          <path class="w" d="M144,334 H176 M144,346 H176" style="stroke-width:3"/>
+          <text class="lbl" x="170" y="380">C1</text>
+        </g>
+
+        <!-- Z line -->
+        <path class="w" d="M90,260 H330"/>
+        <circle class="dot" cx="90" cy="260" r="3.6"/>
+        <circle class="dot" cx="160" cy="260" r="3.6"/>
+        <circle class="dot" cx="220" cy="260" r="3.6"/>
+        <circle class="dot" cx="90" cy="420" r="3.6"/>
+        <circle class="dot" cx="160" cy="420" r="3.6"/>
+        <text class="node" x="100" y="252">Z</text>
+
+        <!-- C2 -->
+        <g class="part" data-part="C2">
+          <rect class="hit" x="210" y="330" width="220" height="40"/>
+          <path class="w" d="M220,260 V350 H296 M308,350 H450"/>
+          <path class="w" d="M296,334 V366 M308,334 V366" style="stroke-width:3"/>
+          <text class="lbl" x="292" y="326">C2</text>
+        </g>
+
+        <!-- R1 -->
+        <g class="part" data-part="R1">
+          <rect class="hit" x="360" y="55" width="40" height="90"/>
+          <path class="w" d="M380,50 V70 M380,120 V150"/>
+          <rect class="body" x="371" y="70" width="18" height="50" rx="1"/>
+          <text class="lbl" x="350" y="100">R1</text>
+        </g>
+        <circle class="dot" cx="380" cy="50" r="3.6"/>
+        <circle class="dot" cx="380" cy="150" r="3.6"/>
+
+        <!-- R2 -->
+        <g class="part" data-part="R2">
+          <rect class="hit" x="360" y="155" width="40" height="72"/>
+          <path class="w" d="M380,150 V168 M380,216 V230"/>
+          <rect class="body" x="371" y="168" width="18" height="48" rx="1"/>
+          <text class="lbl" x="350" y="198">R2</text>
+        </g>
+
+        <!-- Q1 PNP -->
+        <g class="part" data-part="Q1">
+          <circle class="hit" cx="434" cy="150" r="34"/>
+          <circle cx="436" cy="150" r="27" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+          <path class="w" d="M380,150 H418"/>
+          <path class="w" d="M418,130 V170" style="stroke-width:4"/>
+          <path class="w" d="M418,140 L450,120 V50 M418,160 L450,180 V270"/>
+          <polygon class="solid" points="426,135 431.8,125.5 437.1,133.9"/>
+          <text class="lbl" x="470" y="140">Q1</text>
+          <text class="lbl-s" x="470" y="156">BC327 PNP</text>
+        </g>
+
+        <!-- Q2 NPN -->
+        <g class="part" data-part="Q2">
+          <circle class="hit" cx="356" cy="260" r="34"/>
+          <circle cx="358" cy="260" r="27" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+          <path class="w" d="M340,240 V280" style="stroke-width:4"/>
+          <path class="w" d="M340,250 L380,230 M340,270 L380,290 V310"/>
+          <polygon class="solid" points="374,287 362.8,287 367.3,278.1"/>
+          <text class="lbl" x="250" y="226">Q2</text>
+          <text class="lbl-s" x="250" y="242">BC337 NPN</text>
+        </g>
+
+        <!-- sense line from Q2 emitter to output, hopping over D1's lead -->
+        <path class="w" d="M380,310 H442 A8,8 0 0,1 458,310 H620"/>
+
+        <!-- node A and D1 -->
+        <g class="part" data-part="D1">
+          <rect class="hit" x="428" y="360" width="44" height="58"/>
+          <path class="w" d="M450,270 V372 M450,392 V420"/>
+          <polygon class="solid" points="438,392 462,392 450,372"/>
+          <path class="w" d="M437,372 H463" style="stroke-width:3"/>
+          <text class="lbl" x="466" y="388">D1</text>
+        </g>
+        <circle class="dot" cx="450" cy="270" r="3.6"/>
+        <circle class="dot" cx="450" cy="350" r="3.6"/>
+        <circle class="dot" cx="450" cy="420" r="3.6"/>
+        <text class="node" x="430" y="290">A</text>
+
+        <!-- L1 -->
+        <g class="part" data-part="L1">
+          <rect class="hit" x="490" y="245" width="100" height="40"/>
+          <path class="w" d="M450,270 H500 M580,270 H620"/>
+          <path class="w" d="M500,270 a10,10 0 0,1 20,0 a10,10 0 0,1 20,0 a10,10 0 0,1 20,0 a10,10 0 0,1 20,0" style="stroke-width:2.6"/>
+          <text class="lbl" x="531" y="244">L1</text>
+        </g>
+
+        <!-- CLOAD -->
+        <g class="part" data-part="CLOAD">
+          <rect class="hit" x="596" y="316" width="48" height="100"/>
+          <path class="w" d="M620,270 V334 M620,348 V420"/>
+          <path class="w" d="M604,334 H636" style="stroke-width:3"/>
+          <path class="w" d="M604,350 Q620,342 636,350" style="stroke-width:3"/>
+          <text class="lbl" x="602" y="327">+</text>
+          <text class="lbl" x="640" y="384">CLOAD</text>
+        </g>
+        <circle class="dot" cx="620" cy="270" r="3.6"/>
+        <circle class="dot" cx="620" cy="310" r="3.6"/>
+        <circle class="dot" cx="620" cy="420" r="3.6"/>
+        <text class="node" x="604" y="262">B</text>
+
+        <!-- load -->
+        <g class="part load" data-part="LOAD">
+          <rect class="hit" x="680" y="275" width="40" height="140"/>
+          <path class="w" d="M620,270 H700 V318 M700,382 V420"/>
+          <rect class="body" x="691" y="318" width="18" height="64" rx="1"/>
+          <text class="lbl-s" x="666" y="304">load</text>
+        </g>
+        <circle cx="700" cy="270" r="4" class="body"/>
+        <text class="lbl" x="664" y="246">+5 V out</text>
+
+        <g id="volts"></g>
+      </svg>
+    </div>
+
+    <aside class="phase-panel" aria-live="polite">
+      <div class="phase-btns" role="group" aria-label="Show a phase">
+        <button class="btn" type="button" data-phase="1">1<small>On</small></button>
+        <button class="btn" type="button" data-phase="2">2<small>Turn-off</small></button>
+        <button class="btn" type="button" data-phase="3">3<small>Off</small></button>
+        <button class="btn" type="button" data-phase="4">4<small>Turn-on</small></button>
+      </div>
+      <button class="btn" type="button" id="play" aria-pressed="false">Cycle through phases automatically</button>
+      <div class="phase-title" id="ph-title">Phase 1: On</div>
+      <div class="phase-text" id="ph-text"><p>Q2 conducts, so Q1 conducts. Node A sits near +14 V and current ramps up through L1 into the load.</p></div>
+      <ul class="legend" id="ph-legend"></ul>
+      <div class="part-info" id="part-info">
+        <b>Click a component</b>
+        <p class="hint">Each part's job, its representative value, and what would happen without it.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="tbl-wrap wide">
+    <table>
+      <thead><tr><th>Ref</th><th>Part</th><th>Job in one line</th><th class="num">Representative value</th></tr></thead>
+      <tbody>
+        <tr><td><b>Q1</b></td><td>BC327 PNP transistor</td><td>The power switch. Connects +14 V to node A when its base is pulled low.</td><td class="num">800 mA max</td></tr>
+        <tr><td><b>Q2</b></td><td>BC337 NPN transistor</td><td>The comparator and driver. Conducts when V(Z) &minus; V(out) exceeds about 0.6 V, and when it conducts it pulls Q1's base low.</td><td class="num">&mdash;</td></tr>
+        <tr><td><b>ZENER</b></td><td>Zener diode</td><td>The voltage reference. Clamps node Z at its rated voltage.</td><td class="num">5.6 V</td></tr>
+        <tr><td><b>RZ</b></td><td>Resistor</td><td>Feeds current to the zener, to Q2's base, and recharges C1 and C2 after each turn-off (this sets the off-time).</td><td class="num">1 k&Omega;</td></tr>
+        <tr><td><b>C1</b></td><td>Capacitor</td><td>Steadies node Z, and with C2 forms a divider that decides how far Z is knocked down at turn-off.</td><td class="num">47 nF</td></tr>
+        <tr><td><b>C2</b></td><td>Capacitor</td><td>Positive feedback from switch node A to Q2's base. Makes switching snap and creates the timed off period.</td><td class="num">4.7 nF</td></tr>
+        <tr><td><b>R1</b></td><td>Resistor</td><td>Pulls Q1's base up to its emitter so Q1 turns off firmly when Q2 lets go.</td><td class="num">1 k&Omega;</td></tr>
+        <tr><td><b>R2</b></td><td>Resistor</td><td>Sets how much base current Q2 pulls from Q1, and so how hard Q1 is driven into saturation.</td><td class="num">470 &Omega;</td></tr>
+        <tr><td><b>L1</b></td><td>Inductor</td><td>Stores energy while Q1 is on and keeps current flowing to the load while Q1 is off.</td><td class="num">220 &micro;H</td></tr>
+        <tr><td><b>D1</b></td><td>Schottky diode</td><td>The freewheel (catch) diode. Gives L1's current a path from ground while Q1 is off.</td><td class="num">1N5819</td></tr>
+        <tr><td><b>CLOAD</b></td><td>Electrolytic capacitor</td><td>Smooths the output. Absorbs the ripple in L1's current so the load sees a steady voltage.</td><td class="num">220 &micro;F, low ESR</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <h3>The five nodes worth naming</h3>
+    <p>A <em>node</em> is a set of wires that are all connected together and so all share one voltage. The original drawings label three of them; two more are worth naming.</p>
+    <ul>
+      <li><strong>+14 V</strong>: the supply rail. Q1's emitter, R1 and RZ all hang from it.</li>
+      <li><strong>Z</strong>: the reference node. Zener cathode, top of C1, left side of C2, bottom of RZ, and Q2's base. Normally clamped at the zener voltage; briefly knocked below it after every turn-off.</li>
+      <li><strong>A</strong>: the switch node. Q1's collector, D1's cathode, the left end of L1, and the right side of C2. It is the only node that swings across the whole supply range: about +13.8&nbsp;V with Q1 on, about &minus;0.35&nbsp;V with Q1 off.</li>
+      <li><strong>B</strong>: the output. Right end of L1, CLOAD, the load, and Q2's emitter. About 5&nbsp;V, with a few tens of millivolts of ripple.</li>
+      <li><strong>Q1's base</strong> (the junction of R1 and R2): either at +14&nbsp;V (Q1 off, nothing flowing in R1) or at about +13.2&nbsp;V (Q1 on, its base-emitter junction forward biased).</li>
+    </ul>
+  </div>
+</section>
+
+<section id="cycle">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 3</p>
+    <h2>One cycle in four phases</h2>
+    <p>The original author drew the cycle as four snapshots. Here they are again, each with what is happening, why, and what every node is doing. Two phases (On, Off) last microseconds; the other two (Turn-off, Turn-on) are the fast transitions between them and last tens to hundreds of nanoseconds.</p>
+  </div>
+
+  <div class="phase-grid">
+
+    <article class="phase-card" id="phase1">
+      <figure>
+        <img src="img/smps_p1.gif" width="635" height="426" alt="Original drawing, phase 1: on. Major current path from +14 V through Q1, L1 and into the load. Base current path from Q1's base through R2 and Q2 to the output. Regulator current path through RZ into Q2's base. Zener current down through RZ and the zener.">
+        <figcaption>Phase 1, On. Original drawing from romanblack.com/smps.htm.</figcaption>
+      </figure>
+      <div class="prose">
+        <p class="phase-num">PHASE 1 &middot; ON &middot; lasts about 4.5 &micro;s</p>
+        <h3>Q1 is on and the inductor current climbs</h3>
+        <p>Q2's base sits at 5.6&nbsp;V (held there by the zener) and its emitter is at the output, a little under 5&nbsp;V. That is more than the ~0.6&nbsp;V a silicon base-emitter junction needs, so Q2 conducts. Its collector current has to come from somewhere: it flows from the +14&nbsp;V rail, out through Q1's emitter and base, down through R2, through Q2 and into the output. That is the <strong>base current path</strong> in the drawing. Current flowing out of a PNP transistor's base turns it on, so Q1 saturates and connects node A almost directly to +14&nbsp;V.</p>
+        <p>With 13.8&nbsp;V on one end of L1 and 5&nbsp;V on the other, the inductor has about 8.8&nbsp;V across it. An inductor responds to a steady voltage with a steadily rising current: <var>dI/dt</var> = <var>V</var>/<var>L</var> = 8.8&nbsp;V / 220&nbsp;&micro;H = 0.04&nbsp;A per microsecond. That is the <strong>major current path</strong>. Once the inductor current exceeds what the load is drawing, the surplus charges CLOAD and the output voltage creeps up.</p>
+        <p>Meanwhile RZ carries about 8.4&nbsp;mA from the supply to node Z. A tiny part (well under a milliamp) goes into Q2's base (the <strong>regulator current path</strong>); the rest flows down through the zener, which is what holds Z at 5.6&nbsp;V.</p>
+        <dl class="state">
+          <dt>Q1</dt><dd>saturated (on)</dd>
+          <dt>Q2</dt><dd>on, V<sub>BE</sub> &asymp; 0.62&ndash;0.65 V</dd>
+          <dt>D1</dt><dd>reverse biased, 14 V across it, off</dd>
+          <dt>V(A)</dt><dd>&asymp; +13.8 V</dd>
+          <dt>V(Z)</dt><dd>5.6 V, clamped by zener</dd>
+          <dt>V(B)</dt><dd>rising slowly, toward 4.98 V</dd>
+          <dt>I(L1)</dt><dd>rising, &asymp; 0.15 &rarr; 0.33 A</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="phase-card" id="phase2">
+      <figure>
+        <img src="img/smps_p2.gif" width="635" height="426" alt="Original drawing, phase 2: turn off. Major current path loops from ground up through D1, through L1 and the load, and back. C1 discharges into C2. RZ current charges C2.">
+        <figcaption>Phase 2, Turn-off. Original drawing from romanblack.com/smps.htm.</figcaption>
+      </figure>
+      <div class="prose">
+        <p class="phase-num">PHASE 2 &middot; TURN-OFF &middot; a fraction of a microsecond</p>
+        <h3>The output crosses the threshold and the circuit snaps off</h3>
+        <p>The output has risen to the point where V(Z) &minus; V(B) has shrunk below about 0.62&nbsp;V. Q2 starts to conduct less. Less current is pulled out of Q1's base, R1 starts winning, and Q1 begins to turn off. Q1 is saturated, so there is a short <em>storage time</em> (a few hundred nanoseconds) before its collector actually lets go.</p>
+        <p>When it does, the inductor refuses to let its current stop. To keep it flowing, the inductor drives node A downward until something conducts: that something is D1, which turns on as soon as A falls about 0.35&nbsp;V below ground. Node A has just dropped by roughly 14&nbsp;V in a few tens of nanoseconds.</p>
+        <p>Here is the trick. C2 connects A to Z. A capacitor's voltage cannot change instantly, so a sudden 14&nbsp;V drop on one side tries to pull the other side down by the same amount. Z is also connected to C1 (ten times bigger), so the drop is shared between them: <strong>C1 discharges into C2</strong>, exactly as the drawing says, and Z falls by 14.15&nbsp;V &times; C2/(C1+C2) = 14.15 &times; 4.7/51.7 &asymp; <strong>1.3&nbsp;V</strong>, to about 4.3&nbsp;V. Q2's base is now about 0.7&nbsp;V <em>below</em> its emitter. Q2 is not just off, it is reverse biased.</p>
+        <p>This is <strong>positive feedback</strong>: Q2 beginning to turn off causes A to fall, and A falling turns Q2 off harder. The transition therefore completes on its own and very quickly, with no lingering half-on state.</p>
+        <dl class="state">
+          <dt>Q1</dt><dd>storage time, then off</dd>
+          <dt>Q2</dt><dd>turning off, then reverse biased</dd>
+          <dt>D1</dt><dd>starts conducting</dd>
+          <dt>V(A)</dt><dd>+13.8 V &rarr; &minus;0.35 V</dd>
+          <dt>V(Z)</dt><dd>5.6 V &rarr; &asymp; 4.3 V</dd>
+          <dt>V(B)</dt><dd>at its peak, &asymp; 4.99 V</dd>
+          <dt>I(L1)</dt><dd>at its peak, &asymp; 0.33 A</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="phase-card" id="phase3">
+      <figure>
+        <img src="img/smps_p3.gif" width="635" height="426" alt="Original drawing, phase 3: off, the delay period. Major current loops through D1, L1 and the load. RZ current charges C1 and C2.">
+        <figcaption>Phase 3, Off (delay period). Original drawing from romanblack.com/smps.htm.</figcaption>
+      </figure>
+      <div class="prose">
+        <p class="phase-num">PHASE 3 &middot; OFF &middot; lasts about 7.3 &micro;s</p>
+        <h3>The inductor freewheels while RZ slowly resets the trap</h3>
+        <p>Q1 is off. The inductor current now circulates through the <strong>major current path</strong> loop: up from ground through D1, through L1, into CLOAD and the load, and back to ground. The inductor has &minus;0.35&nbsp;V on one end and +5&nbsp;V on the other, so its current falls at about 5.35&nbsp;V / 220&nbsp;&micro;H &asymp; 0.024&nbsp;A per microsecond. Once it drops below the load current, CLOAD makes up the difference and the output voltage sags.</p>
+        <p>At the same time, RZ (with roughly 9.5&nbsp;mA through it, since Z is now lower) is recharging C1 and C2 back toward the zener voltage. These are the two <strong>charging</strong> paths in the drawing. Notice there is no zener current in this phase: Z is below 5.6&nbsp;V, so the zener is not conducting at all. Every bit of RZ's current goes into the capacitors.</p>
+        <p>This is why the original calls it the <strong>delay period</strong>. Q2 cannot turn on again until V(Z) &minus; V(B) climbs back above about 0.62&nbsp;V. The output does fall a little during this phase, but only by tens of millivolts. Z has to rise by about 1.3&nbsp;V. So in practice it is Z's recovery, a simple RC charge, that decides when the off period ends. With the representative values it takes about 7.3&nbsp;&micro;s.</p>
+        <dl class="state">
+          <dt>Q1</dt><dd>off</dd>
+          <dt>Q2</dt><dd>off; V<sub>BE</sub> climbing from &minus;0.7 V toward +0.62 V</dd>
+          <dt>D1</dt><dd>conducting the full inductor current</dd>
+          <dt>V(A)</dt><dd>&asymp; &minus;0.35 V</dd>
+          <dt>V(Z)</dt><dd>ramping up, 4.3 &rarr; 5.6 V</dd>
+          <dt>V(B)</dt><dd>falling, toward &asymp; 4.97 V</dd>
+          <dt>I(L1)</dt><dd>falling, &asymp; 0.33 &rarr; 0.15 A</dd>
+        </dl>
+      </div>
+    </article>
+
+    <article class="phase-card" id="phase4">
+      <figure>
+        <img src="img/smps_p4.gif" width="635" height="426" alt="Original drawing, phase 4: turn on. Major current path from +14 V through Q1 and L1. Base current path through R2 and Q2. C2 charge current from node A through C2 into the zener and Q2's base. Zener current through RZ.">
+        <figcaption>Phase 4, Turn-on. Original drawing from romanblack.com/smps.htm.</figcaption>
+      </figure>
+      <div class="prose">
+        <p class="phase-num">PHASE 4 &middot; TURN-ON &middot; around a hundred nanoseconds</p>
+        <h3>Z recovers, Q2 conducts, and the circuit snaps on</h3>
+        <p>Z has climbed back far enough (and the output has sagged far enough) that Q2's base-emitter junction reaches about 0.62&nbsp;V. Q2 begins to conduct, pulls current from Q1's base through R2, and Q1 starts to turn on. Unsaturated transistors turn on much faster than saturated ones turn off, so this edge is quicker than the turn-off edge.</p>
+        <p>As Q1 conducts, node A leaps from &minus;0.35&nbsp;V to +13.8&nbsp;V. D1 is now reverse biased and turns off. C2 pushes that rising edge into node Z: the <strong>C2 charge current</strong> in the drawing. It tries to push Z upward by 1.3&nbsp;V, which turns Q2 on even harder (positive feedback again, this time in the on direction). Z cannot actually rise much, because Z is already close to 5.6&nbsp;V: the surge is absorbed by the zener and by Q2's own base-emitter junction, which is why the drawing shows the C2 current splitting between those two paths.</p>
+        <p>The circuit is now back in phase 1, with Z clamped at the zener voltage, and the cycle repeats. With the representative values, one full cycle takes about 11.8&nbsp;&micro;s, a frequency of about 85&nbsp;kHz.</p>
+        <dl class="state">
+          <dt>Q1</dt><dd>turning on, then saturated</dd>
+          <dt>Q2</dt><dd>turning on hard</dd>
+          <dt>D1</dt><dd>turning off</dd>
+          <dt>V(A)</dt><dd>&minus;0.35 V &rarr; +13.8 V</dd>
+          <dt>V(Z)</dt><dd>pushed up, clamped at 5.6 V</dd>
+          <dt>V(B)</dt><dd>at its minimum, &asymp; 4.97 V</dd>
+          <dt>I(L1)</dt><dd>at its minimum, &asymp; 0.15 A</dd>
+        </dl>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section id="why5">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 4</p>
+    <h2>Why the output lands at 5 volts</h2>
+  </div>
+  <div class="prose">
+    <p>Q2 changes its mind at one specific condition: its base-emitter voltage crossing about 0.62&nbsp;V. Its base is node Z and its emitter is the output, so the condition is</p>
+  </div>
+  <div class="eq">
+    <div>V(Z) &minus; V(out) = V<sub>BE(on)</sub></div>
+    <div>V(out) = V<sub>Z</sub> &minus; V<sub>BE(on)</sub> &asymp; 5.6 V &minus; 0.62 V &asymp; <b>4.98 V</b></div>
+    <div class="where">Q1 turns off when the output rises past this point (with Z clamped at V<sub>Z</sub>), and stays off at least until it falls back below it.</div>
+  </div>
+  <div class="prose">
+    <p>This is the same arrangement as an <em>emitter follower</em>, the most basic transistor circuit: an emitter sits one V<sub>BE</sub> below the base. Here the follower is not supplying the load current itself. It is used purely as a sensor: whenever the emitter (output) tries to sit more than one V<sub>BE</sub> below the base, the transistor conducts and, via Q1, does something about it.</p>
+    <p>Two consequences follow directly.</p>
+    <ul>
+      <li><strong>To change the output voltage, change the zener.</strong> A 3.9&nbsp;V zener gives about 3.3&nbsp;V out; a 12&nbsp;V zener gives about 11.4&nbsp;V out (with a supply comfortably above that). There is no divider to adjust. See the <a href="#faq-modify">questions on modifying it</a> for how to make it adjustable.</li>
+      <li><strong>The output drifts with temperature the way V<sub>BE</sub> does.</strong> A silicon junction's V<sub>BE</sub> falls by about 2&nbsp;mV for every degree Celsius it warms up. As Q2 warms, the output rises by about 2&nbsp;mV/&deg;C. Zeners around 5&ndash;6&nbsp;V have a temperature coefficient close to zero, so the junction dominates. Over a 40&nbsp;&deg;C swing that is roughly 80&nbsp;mV, or 1.6&nbsp;%.</li>
+    </ul>
+    <p>The average output is slightly below 4.98&nbsp;V, because the output only touches the threshold at the top of each ripple cycle and spends the rest of the cycle a few millivolts below it. The simulator below shows 4.973&nbsp;V average with the representative parts.</p>
+  </div>
+</section>
+
+<section id="c2">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 5</p>
+    <h2>C2: the part that makes it switch</h2>
+  </div>
+  <div class="prose">
+    <p>Take C2 out and think about what is left. Q2 is a transistor with a gain of a few hundred, comparing the output to a reference. Near the threshold, a millivolt change in the output changes Q2's current only a little. Q2 then drives Q1 only partly on. The circuit would settle into a state where Q1 is half-on, dropping 9&nbsp;V across itself while passing the load current, which is a <em>linear regulator</em>, and a hot one: 9&nbsp;V &times; 0.25&nbsp;A = 2.25&nbsp;W in a TO-92 package rated for about 0.6&nbsp;W. In practice the inductor and output capacitor add enough delay that the loop would probably oscillate anyway, but slowly and with soft, lossy edges.</p>
+    <p>C2 turns this sluggish analog loop into a clean digital one. It does three separate things:</p>
+    <ol>
+      <li><strong>Positive feedback on every edge.</strong> Any movement at A is copied, scaled by C2/(C1+C2), to Q2's base, in the same direction that Q2 was already heading. A small start toward turning off becomes a full turn-off; a small start toward turning on becomes a full turn-on. In op-amp language, C2 turns Q2 into a <em>Schmitt trigger</em>, but one whose hysteresis exists only briefly after each edge, rather than permanently.</li>
+      <li><strong>A timed off period.</strong> After each turn-off, Z is knocked down by about 1.3&nbsp;V and must be recharged by RZ before Q2 can turn on again. This forces a minimum off-time and keeps the frequency from running away.</li>
+      <li><strong>A reverse bias on Q2 during the off period</strong>, which makes it immune to noise and ripple on the output while Q1 is off.</li>
+    </ol>
+  </div>
+
+  <h3>How far Z drops</h3>
+  <div class="eq">
+    <div>&Delta;V<sub>Z</sub> = &Delta;V<sub>A</sub> &times; <span class="frac"><span>C2</span><span>C1 + C2</span></span></div>
+    <div>&Delta;V<sub>Z</sub> = 14.15 V &times; <span class="frac"><span>4.7 nF</span><span>51.7 nF</span></span> &asymp; <b>1.29 V</b></div>
+    <div class="where">&Delta;V<sub>A</sub> is node A's full swing: from V<sub>in</sub> &minus; V<sub>CE(sat)</sub> &asymp; 13.8 V down to &minus;V<sub>F</sub> of D1 &asymp; &minus;0.35 V. This is a <em>capacitive divider</em>: charge leaving C2's left plate has to come from C1 (and to a far smaller extent from RZ and Q2's base capacitance).</div>
+  </div>
+
+  <h3>How long Z takes to recover: the off-time</h3>
+  <div class="prose">
+    <p>During the off period RZ drives a current of roughly (V<sub>in</sub> &minus; V<sub>Z</sub>)/RZ into the combined capacitance C1 + C2. Because V<sub>in</sub> is so much higher than V<sub>Z</sub>, that current hardly changes as Z climbs, so the ramp is close to a straight line. The time to climb back up by &Delta;V<sub>Z</sub> is charge divided by current:</p>
+  </div>
+  <div class="eq">
+    <div>t<sub>off</sub> &asymp; <span class="frac"><span>(C1 + C2) &middot; &Delta;V<sub>Z</sub></span><span>I<sub>RZ</sub></span></span> = <span class="frac"><span>(C1 + C2) &middot; &Delta;V<sub>A</sub> &middot; C2 / (C1 + C2)</span><span>I<sub>RZ</sub></span></span> = <b><span class="frac"><span>C2 &middot; &Delta;V<sub>A</sub></span><span>I<sub>RZ</sub></span></span></b></div>
+    <div>t<sub>off</sub> &asymp; <span class="frac"><span>4.7 nF &times; 14.15 V</span><span>9.05 mA</span></span> &asymp; <b>7.35 &micro;s</b></div>
+    <div class="where">I<sub>RZ</sub> taken at the middle of the ramp: (14 V &minus; 4.95 V) / 1 k&Omega; &asymp; 9.05 mA.</div>
+  </div>
+  <div class="note key">
+    <p class="eyebrow">A result worth stopping on</p>
+    <p><strong>C1 cancels out of the off-time.</strong> A bigger C1 makes the kick smaller, but it also makes the recovery proportionally slower, and the two effects cancel exactly. The off-time is set by C2, the supply voltage and RZ alone: it is the time RZ takes to replace the charge C2 removed. C1 decides only how <em>deep</em> the kick goes, which matters for noise immunity and for protecting Q2 (see <a href="#q-c1-small">what happens if C1 is too small</a>).</p>
+  </div>
+  <div class="prose">
+    <p>Once you have a constant off-time, the rest follows from the inductor. In steady state the inductor current must end each cycle where it started, so the current gained during the on-time must equal the current lost during the off-time (this is called <em>volt-second balance</em>):</p>
+  </div>
+  <div class="eq">
+    <div>(V<sub>in</sub> &minus; V<sub>sat</sub> &minus; V<sub>out</sub>) &middot; t<sub>on</sub> = (V<sub>out</sub> + V<sub>F</sub>) &middot; t<sub>off</sub></div>
+    <div>t<sub>on</sub> = t<sub>off</sub> &middot; <span class="frac"><span>V<sub>out</sub> + V<sub>F</sub></span><span>V<sub>in</sub> &minus; V<sub>sat</sub> &minus; V<sub>out</sub></span></span> = 7.35 &micro;s &times; <span class="frac"><span>5.33</span><span>8.82</span></span> &asymp; <b>4.45 &micro;s</b></div>
+  </div>
+  <div class="prose">
+    <p>So the circuit's control law is: <strong>stay off for a fixed time set by C2 and RZ; then stay on until the output reaches the threshold.</strong> This family of controllers is called <em>constant off-time</em> (COT) or, more loosely, <em>hysteretic</em> or <em>ripple</em> regulation. Commercial controller ICs use the same idea with a precision comparator and a timer. Here, one transistor and one capacitor do both jobs.</p>
+  </div>
+</section>
+
+<section id="numbers">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 6</p>
+    <h2>Frequency, duty cycle and ripple</h2>
+  </div>
+  <div class="tbl-wrap wide">
+    <table>
+      <thead><tr><th>Quantity</th><th>Formula</th><th class="num">Hand calc.</th><th class="num">Simulator</th></tr></thead>
+      <tbody>
+        <tr><td>Duty cycle <var>D</var></td><td>(V<sub>out</sub> + V<sub>F</sub>) / (V<sub>in</sub> &minus; V<sub>sat</sub> + V<sub>F</sub>)</td><td class="num">0.377</td><td class="num">0.381</td></tr>
+        <tr><td>Off-time</td><td>C2 &middot; &Delta;V<sub>A</sub> / I<sub>RZ</sub></td><td class="num">7.35 &micro;s</td><td class="num">7.34 &micro;s</td></tr>
+        <tr><td>On-time</td><td>t<sub>off</sub> &middot; D / (1 &minus; D)</td><td class="num">4.45 &micro;s</td><td class="num">4.51 &micro;s</td></tr>
+        <tr><td>Frequency</td><td>(1 &minus; D) / t<sub>off</sub></td><td class="num">84.7 kHz</td><td class="num">84.4 kHz</td></tr>
+        <tr><td>Inductor ripple &Delta;I<sub>L</sub></td><td>(V<sub>out</sub> + V<sub>F</sub>) &middot; t<sub>off</sub> / L</td><td class="num">178 mA p-p</td><td class="num">180 mA p-p</td></tr>
+        <tr><td>Output ripple, ESR part</td><td>&Delta;I<sub>L</sub> &middot; ESR</td><td class="num">17.8 mV</td><td class="num" rowspan="2">18.1 mV p-p</td></tr>
+        <tr><td>Output ripple, capacitance part</td><td>&Delta;I<sub>L</sub> / (8 &middot; f &middot; C<sub>LOAD</sub>)</td><td class="num">1.2 mV</td></tr>
+        <tr><td>Peak inductor current</td><td>I<sub>load</sub> + &Delta;I<sub>L</sub>/2</td><td class="num">0.34 A</td><td class="num">0.33 A</td></tr>
+        <tr><td>Input current (average)</td><td>P<sub>in</sub> / V<sub>in</sub></td><td class="num">&asymp; 0.11 A</td><td class="num">0.108 A</td></tr>
+        <tr><td>Efficiency (no switching loss)</td><td>P<sub>out</sub> / P<sub>in</sub></td><td class="num">&asymp; 82 %</td><td class="num">82.3 %</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Read down the table and three facts about this circuit emerge.</p>
+    <ul>
+      <li><strong>The frequency barely depends on the load.</strong> Nothing in the off-time formula involves load current, and the duty cycle only shifts a little with load (through resistive drops). Between 100&nbsp;mA and 500&nbsp;mA the simulated frequency stays within 2&nbsp;%. It does depend on the input voltage: at 9&nbsp;V in the duty cycle is near 0.6 and the frequency drops to about 38&nbsp;kHz; at 24&nbsp;V in it rises to about 130&nbsp;kHz.</li>
+      <li><strong>The output ripple is mostly CLOAD's ESR.</strong> The capacitor's equivalent series resistance (ESR) turns the inductor's triangular ripple current directly into a triangular ripple voltage. The capacitance itself contributes far less. This matters more than usual here, because the regulator decides when to switch by watching that ripple. See <a href="#q-esr">why ESR is part of the control loop</a>.</li>
+      <li><strong>The input current is less than half the output current.</strong> 14&nbsp;V &times; 0.108&nbsp;A &asymp; 1.51&nbsp;W in, 5&nbsp;V &times; 0.25&nbsp;A &asymp; 1.24&nbsp;W out. A linear regulator would draw the full 0.25&nbsp;A from the 14&nbsp;V supply (3.5&nbsp;W in) and turn 2.25&nbsp;W of it into heat.</li>
+    </ul>
+  </div>
+
+  <h3>Where the losses go</h3>
+  <div class="tbl-wrap wide">
+    <table>
+      <thead><tr><th>Loss</th><th>How it arises</th><th class="num">At 250 mA</th></tr></thead>
+      <tbody>
+        <tr><td>RZ and zener</td><td>Constant ~9 mA from 14 V, whether or not there is a load</td><td class="num">&asymp; 120 mW</td></tr>
+        <tr><td>Q1 base drive</td><td>~17 mA through R2 and Q2 during the on-time, dropping (14 &minus; 5) V; it ends up in the load, but only the 5 V part is useful</td><td class="num">&asymp; 55 mW</td></tr>
+        <tr><td>D1 conduction</td><td>0.33 V &times; 0.25 A &times; (1 &minus; D)</td><td class="num">&asymp; 50 mW</td></tr>
+        <tr><td>Q1 saturation</td><td>&asymp; 0.2 V &times; 0.25 A &times; D</td><td class="num">&asymp; 20 mW</td></tr>
+        <tr><td>Inductor copper</td><td>I<sup>2</sup>R with 0.3 &Omega; of wire</td><td class="num">&asymp; 19 mW</td></tr>
+        <tr><td>Switching</td><td>Q1 crossing between on and off with voltage and current both present; not in the simulator</td><td class="num">&asymp; 20&ndash;60 mW</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>The biggest loss at this load is not the switch or the diode. It is the reference string, RZ and the zener, which costs about 120&nbsp;mW all the time. That is why the efficiency falls badly at light loads (25&nbsp;% at 10&nbsp;mA in the simulator) and improves at heavy loads (about 86&nbsp;% at 500&nbsp;mA). Raising RZ cuts this loss but lengthens the off-time and weakens Q2's base drive; see <a href="#q-rz-bigger">making RZ bigger</a>.</p>
+  </div>
+</section>
+
+<section id="sim">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 7</p>
+    <h2>Watch it run</h2>
+    <p>A behavioural simulation of the circuit, running in your browser. It powers the circuit up from zero, lets it settle, then shows the last few switching cycles. Move any slider and it re-runs. The traces use the same colours as the rest of the page: <span style="color:var(--sig-a)">node A</span>, <span style="color:var(--sig-z)">node Z</span>, <span style="color:var(--sig-be)">Q2's V<sub>BE</sub></span>, <span style="color:var(--sig-il)">inductor current</span>, <span style="color:var(--sig-vo)">output voltage</span>.</p>
+  </div>
+
+  <div class="sim">
+    <form class="controls" id="controls" onsubmit="return false">
+      <div class="presets" role="group" aria-label="Presets">
+        <button class="btn" type="button" data-preset="base">Representative</button>
+        <button class="btn" type="button" data-preset="heavy">500 mA load</button>
+        <button class="btn" type="button" data-preset="light">10 mA load</button>
+        <button class="btn" type="button" data-preset="v24">24 V in</button>
+        <button class="btn" type="button" data-preset="v9">9 V in</button>
+        <button class="btn" type="button" data-preset="smallc2">Tiny C2</button>
+        <button class="btn" type="button" data-preset="smallc1">Tiny C1</button>
+        <button class="btn" type="button" data-preset="badesr">High-ESR cap</button>
+      </div>
+      <div id="sliders"></div>
+      <p class="status" id="sim-status">Simulating&hellip;</p>
+    </form>
+
+    <div class="scope">
+      <div class="readout" id="readout"></div>
+      <div class="warns" id="warns"></div>
+      <div class="plots">
+        <canvas id="plot" aria-label="Simulated waveforms of the last few switching cycles"></canvas>
+      </div>
+      <div class="plots">
+        <canvas id="plot-start" class="startup" aria-label="Simulated start-up: output voltage and inductor current from power-on"></canvas>
+      </div>
+      <details class="q">
+        <summary>What the simulator models, and what it leaves out</summary>
+        <div class="a">
+          <p>It integrates the inductor current, the output capacitor voltage and the voltage on node Z in 2&ndash;10&nbsp;ns steps. Q2 and the zener are treated as a comparator: Q2 is "on" whenever V(Z) &minus; V(out) exceeds 0.62&nbsp;V. Q1 switches after a delay (0.1&nbsp;&micro;s to turn on, 0.4&nbsp;&micro;s storage time to turn off), has a small saturation voltage, and cannot carry more current than its base drive times a gain of 80. C2's coupling is applied as charge sharing with C1. The zener is an ideal clamp; Q2's base is clamped 0.8&nbsp;V above the output when on and cannot go further than 5.5&nbsp;V below it (emitter-base breakdown). D1 is a Schottky with about 0.3&nbsp;V drop. The inductor has 0.3&nbsp;&Omega; of resistance; the output capacitor has the ESR you set.</p>
+          <p>Left out: the gradual, analog part of each transition (so switching losses are not counted, and the "no C2" case looks cleaner than reality, since a real C2-less circuit would linger half-on), parasitic ringing at node A in discontinuous mode, the zener's soft knee, temperature, and any variation in transistor gain with current. Treat its numbers as a careful sketch, good to perhaps 10&ndash;20&nbsp;%, not as a substitute for SPICE or a breadboard.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 8</p>
+    <h2>Where it stops working</h2>
+    <p>Every simple circuit buys its simplicity by giving something up. These are the edges of this one's operating envelope.</p>
+  </div>
+  <div class="tbl-wrap wide">
+    <table>
+      <thead><tr><th>Limit</th><th>What sets it</th><th>What happens past it</th></tr></thead>
+      <tbody>
+        <tr><td><b>Short circuit / overload</b></td><td>Nothing. There is no current limit.</td><td>The output collapses, Q2 stays fully on, Q1 stays fully on, and current is limited only by Q1's gain and the supply. A BC327 (800&nbsp;mA rating) will very likely be destroyed.</td></tr>
+        <tr><td><b>Start-up inrush</b></td><td>CLOAD starts at 0&nbsp;V, so Q1 stays on until the output arrives. Inductor current climbs until Q1's base drive runs out.</td><td>With the representative parts, roughly 2&nbsp;A for a fraction of a millisecond: beyond the BC327's ratings. Usually survived, not guaranteed. A bigger Q1, a larger R2, a smaller CLOAD or a soft-start network all help.</td></tr>
+        <tr><td><b>Minimum input voltage</b></td><td>Q1 needs headroom to saturate, and RZ needs headroom to keep the zener conducting and to supply Q2's base.</td><td>Below roughly V<sub>out</sub> + 3&nbsp;V the duty cycle approaches 100&nbsp;% and the output follows the input down (<em>dropout</em>). Below V<sub>Z</sub> the reference itself fails.</td></tr>
+        <tr><td><b>Maximum input voltage</b></td><td>Q1 and Q2 V<sub>CEO</sub> = 45&nbsp;V; RZ dissipation; C2 voltage rating; D1 reverse rating (40&nbsp;V for a 1N5819).</td><td>RZ's power rises with the square of the voltage across it: 0.07&nbsp;W at 14&nbsp;V, 0.34&nbsp;W at 24&nbsp;V, 1.1&nbsp;W at 40&nbsp;V. Stay well under 40&nbsp;V and resize RZ.</td></tr>
+        <tr><td><b>Maximum load current</b></td><td>Q1 continuous collector current (800&nbsp;mA), Q1 base drive via R2, inductor saturation current, D1 rating (1&nbsp;A).</td><td>Q1 leaves saturation and heats rapidly; or the inductor core saturates, its inductance collapses and current spikes.</td></tr>
+        <tr><td><b>Light load</b></td><td>The inductor current reaches zero during the off-time (<em>discontinuous conduction</em>).</td><td>Still regulates, but node A rings, the frequency changes, and efficiency is poor because RZ's constant loss dominates.</td></tr>
+        <tr><td><b>Too little ripple</b></td><td>The regulator needs ripple on the output to know when to switch.</td><td>With a very low-ESR capacitor (some ceramics, polymer types), the turn-on and turn-off decisions become erratic: jittery or grouped pulses. See <a href="#q-esr">ESR</a>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="scope">
+  <div class="sec-head">
+    <p class="eyebrow">Part I &middot; 9</p>
+    <h2>The original scope photos</h2>
+    <p>The attached files include two oscilloscope ("CRO", cathode-ray oscilloscope) photos and a bench photo. Their probe points and settings were not given, so the readings below are informed interpretations rather than facts.</p>
+  </div>
+  <div class="gallery">
+    <figure>
+      <img src="img/cro.jpg" width="300" height="230" alt="Oscilloscope trace: a repeating pattern of a slow, slightly curved rise, a short flat top, then an almost vertical drop.">
+      <figcaption><b>Sawtooth with a flat top.</b> This shape matches node Z almost exactly. The near-vertical drop is the turn-off kick through C2. The curved rise is RZ recharging C1 and C2 during the off period (it bends slightly because RZ's current falls a little as Z rises). The short flat top is the zener clamping Z while Q1 is on. The rise is longer than the flat part, consistent with an off-time longer than the on-time, as expected for 14&nbsp;V to 5&nbsp;V.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/a03_cro.jpg" width="335" height="273" alt="Oscilloscope trace: a clean rectangular wave with sharp edges and flat tops and bottoms.">
+      <figcaption><b>Rectangular wave.</b> This has the shape of a switch node like node A: flat at the top (switch on), flat at the bottom (diode conducting), sharp edges. Its duty cycle looks close to 50&nbsp;%, not the ~38&nbsp;% expected at 14&nbsp;V in and 5&nbsp;V out. The file name (<code>a03_cro</code>) suggests it may come from a different section or a different test condition, so don't calibrate against it.</figcaption>
+    </figure>
+    <figure>
+      <img src="img/dummy.jpg" width="512" height="384" alt="Bench photo: a large green wirewound power resistor, a potentiometer, a small resistor and a TO-220 power transistor wired together, beside a breadboard.">
+      <figcaption><b>An adjustable dummy load.</b> A TO-220 power transistor, a potentiometer and a large wirewound resistor. The pot sets the transistor's base drive, the transistor sets how much current flows, and the power resistor shares the heat. This lets you dial the load current up and down while watching how the regulator responds, without needing a box of different resistors. See <a href="#q-dummy">building a dummy load</a>.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ PART II -->
+
+<section id="faq">
+  <div class="sec-head">
+    <p class="eyebrow">Part II</p>
+    <h2>Questions</h2>
+    <p>Grouped roughly from "I've never seen a schematic" to "I want to put this in a product". Search filters as you type and opens the matching answers.</p>
+  </div>
+
+  <div class="faq-tools">
+    <input type="search" id="faq-search" placeholder="Search the questions, e.g. ESR, zener, saturation" aria-label="Search the questions">
+    <button class="btn" type="button" id="faq-open">Open all</button>
+    <button class="btn" type="button" id="faq-close">Close all</button>
+    <span class="faq-count" id="faq-count"></span>
+  </div>
+
+  <div id="faq-body">
+
+  <!-- ------------------------------------------------ Reading -->
+  <div class="faq-group" id="faq-reading">
+    <h3>Reading the drawings</h3>
+
+    <details class="q"><summary>What do the coloured lines on the original drawings mean?</summary><div class="a">
+      <p>They are not wires. They are hand-drawn arrows showing where current is flowing in that phase, laid on top of the black-and-red schematic. Each drawing has a key in the top right: thick magenta for the "major" (load) current, thinner colours for the small control currents. The arrowheads show the direction of conventional current (see the next question).</p>
+      <p>On this page's redrawn schematic, the same paths appear as translucent bands with moving dots when you choose a phase, using one colour per kind of current that stays the same in every phase.</p>
+    </div></details>
+
+    <details class="q"><summary>Which way does current flow: plus to minus, or minus to plus?</summary><div class="a">
+      <p>Both answers are correct, describing different things. <strong>Conventional current</strong> flows from positive to negative. It is the convention used in every schematic, every formula and every transistor symbol (the arrow on a transistor's emitter points in the conventional-current direction). <strong>Electron flow</strong> goes the other way, because electrons are negatively charged.</p>
+      <p>The drawings and this page use conventional current throughout. Never mix the two in one analysis.</p>
+    </div></details>
+
+    <details class="q"><summary>What do the dots on the wires mean, and why do some wires cross without one?</summary><div class="a">
+      <p>A dot marks a junction: every wire touching it is connected. Two wires that cross <em>without</em> a dot are <strong>not</strong> connected; they just pass over each other on paper. In the original drawing, the line from Q2's emitter to the output crosses the vertical wire through node A without a dot, so those are separate.</p>
+      <p>On this page's redrawn schematic, that crossing is drawn with a small hop (a semicircle) to make it unmistakable.</p>
+    </div></details>
+
+    <details class="q"><summary>What are Z, A and B?</summary><div class="a">
+      <p>Node names the original author added so the text could refer to them. <strong>Z</strong> is the zener/reference node (also Q2's base). <strong>A</strong> is the switch node, where Q1, D1, L1 and C2 meet. <strong>B</strong> is the regulated output. See <a href="#circuit">the five nodes worth naming</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>What does "Gnd" mean, and is it the same as negative?</summary><div class="a">
+      <p>Ground is simply the node that every other voltage is measured from, and it is called 0&nbsp;V by definition. Here it is the negative terminal of the 14&nbsp;V supply and also the negative side of the output. When this page says "node A is at &minus;0.35&nbsp;V", it means A is 0.35&nbsp;V below ground. Ground is not a special physical thing; it is a reference you choose.</p>
+    </div></details>
+
+    <details class="q"><summary>Why are both ends of the ground line labelled Gnd separately?</summary><div class="a">
+      <p>They are the same node. The drawing labels the input ground on the left and output ground on the right so you can see the converter has a common ground: the output's negative is the input's negative. A buck converter cannot provide isolation between input and output.</p>
+    </div></details>
+
+    <details class="q"><summary>What do the transistor symbols tell me?</summary><div class="a">
+      <p>The bar is the base. The two angled lines are the collector and the emitter; the one with the arrow is the emitter. The arrow points the way conventional current flows through the base-emitter junction when the transistor is on.</p>
+      <ul>
+        <li><strong>Arrow pointing out</strong> (Q2, BC337): NPN. Turn it on by making the base about 0.6&nbsp;V more <em>positive</em> than the emitter. Current flows in at the collector, out at the emitter.</li>
+        <li><strong>Arrow pointing in</strong> (Q1, BC327): PNP. Turn it on by making the base about 0.6&nbsp;V more <em>negative</em> than the emitter. Current flows in at the emitter, out at the collector.</li>
+      </ul>
+      <p>A mnemonic: NPN = "Not Pointing iN".</p>
+    </div></details>
+
+    <details class="q"><summary>What are the triangle-and-bar symbols?</summary><div class="a">
+      <p>Diodes. Conventional current flows easily in the direction the triangle points, and is blocked the other way. The bar is the cathode. D1's triangle points up, from ground toward node A: it conducts when A falls below ground. The zener's symbol has small hooks on the bar, marking it as a diode meant to be operated in reverse breakdown (see <a href="#q-zener">what a zener is</a>).</p>
+    </div></details>
+
+    <details class="q"><summary>What is the "+" on CLOAD?</summary><div class="a">
+      <p>CLOAD is an electrolytic capacitor, which is polarised: one lead must always be more positive than the other. The "+" marks the lead that goes to the output. Fitted backwards, an electrolytic leaks, heats, and can vent or burst. On the physical part the <em>negative</em> lead is usually the one marked, with a stripe of minus signs, and is the shorter lead.</p>
+    </div></details>
+
+    <details class="q"><summary>Are the resistors drawn as boxes the same as the zigzag ones I've seen elsewhere?</summary><div class="a">
+      <p>Yes. The box is the European/IEC symbol and the zigzag is the American/ANSI one. They mean the same component.</p>
+    </div></details>
+
+    <details class="q"><summary>Why does "1" and "2" appear on the inductor?</summary><div class="a">
+      <p>Pin numbers, from the drawing program. An ordinary inductor works the same either way round. (In very sensitive designs the "start" of the winding is put on the noisy node A so the outer turns, which are at the quiet output, shield the noisy inner ones, but this circuit doesn't need that level of care.)</p>
+    </div></details>
+
+    <details class="q"><summary>Why is there no load drawn on the original?</summary><div class="a">
+      <p>The load is whatever you connect to "Regulated +5v out": a microcontroller, LEDs, a radio. The drawings show the major current arrows heading off the right edge toward it. This page's version draws a dashed resistor labelled "load" so the current path has somewhere to close.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Basics -->
+  <div class="faq-group" id="faq-basics">
+    <h3>Concepts from zero</h3>
+    <p class="hint">If you already know what an inductor and a saturated transistor are, skip to the next group.</p>
+
+    <details class="q"><summary>What is a voltage regulator for?</summary><div class="a">
+      <p>Most electronics needs a fixed supply voltage (5&nbsp;V, 3.3&nbsp;V) that stays put whatever the input does and whatever current the circuit draws. Batteries sag as they discharge, car electrical systems swing between 11 and 15&nbsp;V and spike higher, and wall adaptors vary with load. A regulator takes that messy input and produces a steady output.</p>
+    </div></details>
+
+    <details class="q" id="q-linear"><summary>What is the difference between a linear regulator and a switching regulator?</summary><div class="a">
+      <p>A <strong>linear regulator</strong> (78L05, LM317, a zener and a transistor) is a variable resistor in series with the load. To get 5&nbsp;V from 14&nbsp;V, it drops the extra 9&nbsp;V across itself. The current in equals the current out, so the excess power, 9&nbsp;V &times; I<sub>load</sub>, becomes heat. Efficiency is at best V<sub>out</sub>/V<sub>in</sub> = 36&nbsp;% here.</p>
+      <p>A <strong>switching regulator</strong> uses a switch that is either fully on (almost no voltage across it) or fully off (almost no current through it). Either way, very little power is lost in the switch. An inductor and capacitor smooth the chopped waveform back into DC. Because energy is transferred rather than burned, the input current can be much less than the output current, and efficiency of 80&ndash;95&nbsp;% is normal.</p>
+      <p>The price is complexity, ripple and electrical noise, and the need for an inductor.</p>
+    </div></details>
+
+    <details class="q"><summary>What does "buck" mean? Are there other kinds?</summary><div class="a">
+      <p>A <strong>buck</strong> converter steps voltage down. The name comes from "bucking" (opposing) the input. Its signature is exactly this arrangement: a switch from the input to an inductor, a diode from ground to the same point, and the inductor's other end going to the output capacitor.</p>
+      <p>Siblings: a <strong>boost</strong> converter steps up (the inductor goes to the input, the switch to ground); a <strong>buck-boost</strong> or <strong>inverting</strong> converter can go either way or produce a negative output; <strong>flyback</strong> and <strong>forward</strong> converters use a transformer for isolation. All use the same core idea: store energy in a magnetic field, release it where you want it.</p>
+    </div></details>
+
+    <details class="q" id="q-inductor"><summary>What does an inductor actually do?</summary><div class="a">
+      <p>An inductor is a coil of wire, usually around a magnetic core. Current through it builds a magnetic field, and that field stores energy (&frac12;&middot;L&middot;I<sup>2</sup>). The key behaviour: <strong>an inductor resists changes in its current</strong>. Its defining equation is</p>
+      <div class="eq"><div>V = L &middot; <span class="frac"><span>dI</span><span>dt</span></span></div><div class="where">The voltage across it sets how fast its current changes, not how big the current is.</div></div>
+      <p>Put a steady voltage across an inductor and its current ramps steadily. Try to stop its current suddenly and it produces whatever voltage it takes to keep the current going, which is why node A dives below ground the moment Q1 turns off: the inductor yanks it down until D1 conducts.</p>
+      <p>A useful analogy is a heavy flywheel or water in a long pipe: it takes effort to speed up and keeps going when you stop pushing.</p>
+    </div></details>
+
+    <details class="q"><summary>What does a capacitor actually do?</summary><div class="a">
+      <p>A capacitor stores charge on two plates separated by an insulator. Its defining equation is the mirror of an inductor's: <strong>a capacitor resists changes in its voltage</strong>.</p>
+      <div class="eq"><div>I = C &middot; <span class="frac"><span>dV</span><span>dt</span></span></div><div class="where">The current into it sets how fast its voltage changes.</div></div>
+      <p>The consequence used by C2 in this circuit: since the voltage <em>across</em> a capacitor cannot jump, if one plate's voltage jumps, the other plate's voltage jumps by the same amount (unless something else supplies the charge to stop it). That is why a 14&nbsp;V step at node A appears at node Z, reduced only by C1 sharing the charge.</p>
+    </div></details>
+
+    <details class="q"><summary>What does a diode do?</summary><div class="a">
+      <p>It lets current through in one direction (anode to cathode, the way the triangle points) once the forward voltage exceeds a threshold, about 0.6&ndash;0.7&nbsp;V for silicon or 0.2&ndash;0.45&nbsp;V for a Schottky. In the other direction it blocks, up to its reverse voltage rating. In this circuit D1 acts as an automatic switch: it closes by itself whenever Q1 opens and the inductor drags node A negative.</p>
+    </div></details>
+
+    <details class="q" id="q-zener"><summary>What is a zener diode?</summary><div class="a">
+      <p>A diode designed to break down at a precise reverse voltage, and to survive doing it. Once the reverse voltage reaches its rating (5.6&nbsp;V here), it conducts as much current as necessary to stop the voltage going any higher, a bit like a pressure-relief valve. Feed it from a resistor and it gives you a fairly stable reference voltage: the resistor (RZ) drops whatever voltage the supply has spare, and the zener holds its own voltage.</p>
+      <p>It needs a minimum current to be "in regulation", typically 1&ndash;5&nbsp;mA for a small zener. Below that, its voltage sags. Above its maximum power rating (often 0.5&nbsp;W or 1.3&nbsp;W), it overheats.</p>
+    </div></details>
+
+    <details class="q"><summary>How does a bipolar transistor work, in practical terms?</summary><div class="a">
+      <p>A small current flowing through the base-emitter junction allows a much larger current to flow through the collector-emitter path. The ratio is the current gain, <var>h<sub>FE</sub></var> or &beta;, typically 100&ndash;600 for small transistors. The base-emitter junction behaves like a diode, so it needs about 0.6&ndash;0.7&nbsp;V across it to conduct.</p>
+      <p>Two regimes matter here:</p>
+      <ul>
+        <li><strong>Active (linear) region</strong>: collector current = &beta; &times; base current. The transistor behaves like a current-controlled valve, and can have a large voltage across it while conducting, so it can get hot.</li>
+        <li><strong>Saturation</strong>: you supply far more base current than needed for the actual collector current. The transistor is "fully on" with only 0.1&ndash;0.3&nbsp;V across it, like a closed switch.</li>
+      </ul>
+      <p>A switching regulator wants its switch to spend as close to zero time as possible in the active region.</p>
+    </div></details>
+
+    <details class="q" id="q-saturation"><summary>What is saturation, and what is storage time?</summary><div class="a">
+      <p><strong>Saturation</strong> is the state where a bipolar transistor has more base current than its collector current requires, so it can't conduct any harder: its collector-emitter voltage collapses to its minimum (V<sub>CE(sat)</sub>, about 0.1&ndash;0.3&nbsp;V for a BC327 at a few hundred mA). Engineers express the overdrive as a <em>forced beta</em>: actual collector current divided by base current supplied. Here, about 0.3&nbsp;A / 16&nbsp;mA &asymp; 19, far below the BC327's real gain of 100+, so Q1 is firmly saturated.</p>
+      <p>The cost is <strong>storage time</strong>. A saturated transistor's base region is flooded with excess charge carriers. When you remove the base drive, the transistor keeps conducting until that charge has been swept out, which takes from a hundred nanoseconds to a few microseconds depending on how hard it was driven and how hard you pull the charge out. R1 helps pull it out. That delay is why the turn-off edge in this circuit lags the decision to turn off, and why the output overshoots the threshold a little each cycle.</p>
+    </div></details>
+
+    <details class="q"><summary>What does "self-oscillating" mean?</summary><div class="a">
+      <p>Most switching regulators have a clock (an oscillator running at a fixed frequency) and a control circuit that decides how much of each clock cycle the switch spends on. This circuit has no clock. The switching rhythm emerges from the circuit's own behaviour: the comparator, the delay built by C2 and RZ, and the inductor and capacitor. It oscillates because it is unstable on purpose: there is no steady state where Q1 can sit still.</p>
+    </div></details>
+
+    <details class="q"><summary>What is positive feedback, and isn't feedback supposed to be negative?</summary><div class="a">
+      <p><strong>Negative feedback</strong> opposes change: if the output rises, the circuit acts to bring it down. It makes things stable and accurate, and the overall regulator loop (output too high &rarr; switch off &rarr; output falls) is negative feedback.</p>
+      <p><strong>Positive feedback</strong> reinforces change: a small push becomes a big one. It makes a circuit snap decisively between two states instead of settling in the middle. Light switches use mechanical positive feedback (a spring over a cam) so they click. C2 is the electrical equivalent: once Q1 begins to switch, C2 pushes Q2 to make it switch faster and further.</p>
+      <p>This regulator uses both: slow negative feedback for regulation, fast positive feedback for clean switching.</p>
+    </div></details>
+
+    <details class="q"><summary>What is hysteresis?</summary><div class="a">
+      <p>Having different thresholds depending on which way you are going. A thermostat that turns the heating on at 19&nbsp;&deg;C and off at 21&nbsp;&deg;C has 2&nbsp;&deg;C of hysteresis. Without it, the heating would click on and off rapidly at exactly 20&nbsp;&deg;C as the temperature jittered.</p>
+      <p>In this circuit, the hysteresis is temporary: right after a turn-off, Z is 1.3&nbsp;V lower, so the turn-on threshold is effectively 1.3&nbsp;V higher. As RZ recharges Z, that extra threshold shrinks back to zero. A regular Schmitt trigger has permanent hysteresis; this one has "hysteresis that decays", which is why the result is a constant off-time rather than a fixed voltage window.</p>
+    </div></details>
+
+    <details class="q"><summary>What is "duty cycle"?</summary><div class="a">
+      <p>The fraction of each cycle the switch spends on. A 38&nbsp;% duty cycle means Q1 is on for 38&nbsp;% of the time. For an ideal buck converter, the output is the input multiplied by the duty cycle: 14&nbsp;V &times; 0.357 = 5&nbsp;V. The real figure is a little higher (about 0.38) because the switch and diode drop some voltage.</p>
+    </div></details>
+
+    <details class="q"><summary>Why does averaging a chopped 14 V waveform give 5 V?</summary><div class="a">
+      <p>Node A spends about 38&nbsp;% of its time at +13.8&nbsp;V and about 62&nbsp;% at &minus;0.35&nbsp;V. Its average is 0.38 &times; 13.8 + 0.62 &times; (&minus;0.35) &asymp; 5.0&nbsp;V. An inductor cannot have a DC voltage across it in steady state (its current would ramp forever), so the inductor's two ends must have the same average voltage. The output end is held steady by CLOAD, so the output equals node A's average. The LC pair is a low-pass filter that passes the average and blocks the switching.</p>
+    </div></details>
+
+    <details class="q"><summary>What are &micro;H, nF, kHz and the rest?</summary><div class="a">
+      <ul>
+        <li>&micro; (micro) = one millionth. 220&nbsp;&micro;H = 0.000220&nbsp;henries. 7&nbsp;&micro;s = 7 millionths of a second.</li>
+        <li>n (nano) = one billionth. 4.7&nbsp;nF = 0.0000000047&nbsp;farads. Also written 4n7.</li>
+        <li>m (milli) = one thousandth. 250&nbsp;mA = 0.25&nbsp;A.</li>
+        <li>k (kilo) = one thousand. 1&nbsp;k&Omega; = 1000&nbsp;ohms. 85&nbsp;kHz = 85,000 cycles per second.</li>
+        <li>p (pico) = one trillionth, for very small capacitors.</li>
+      </ul>
+      <p>Component markings often put the multiplier where the decimal point would go: 4k7 = 4.7&nbsp;k&Omega;, 2n2 = 2.2&nbsp;nF, 4R7 = 4.7&nbsp;&Omega;. Ceramic capacitors use a three-digit code in picofarads: 472 = 47 &times; 10<sup>2</sup>&nbsp;pF = 4.7&nbsp;nF; 473 = 47&nbsp;nF; 104 = 100&nbsp;nF.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Parts -->
+  <div class="faq-group" id="faq-parts">
+    <h3>Each part's job</h3>
+
+    <details class="q"><summary>Why is Q1 a PNP transistor rather than an NPN?</summary><div class="a">
+      <p>Q1 is a <em>high-side</em> switch: it sits between the positive supply and the load. A PNP's emitter goes to the positive supply, and you turn it on by pulling its base about 0.7&nbsp;V below the supply, which is easy: just let a current flow out of the base towards ground, which is exactly what Q2 and R2 do.</p>
+      <p>An NPN in the same spot would have its emitter at node A, which swings up to nearly 14&nbsp;V. To turn it fully on you would need its base at about 14.7&nbsp;V, <em>above</em> the supply. That needs a "bootstrap" circuit or a separate higher supply. The PNP avoids the problem entirely, at the cost of PNPs being slightly worse transistors than NPNs of the same size.</p>
+    </div></details>
+
+    <details class="q"><summary>Why a BC327 and BC337 specifically?</summary><div class="a">
+      <p>They are a cheap, very common complementary pair (one PNP, one NPN with matching specs) in the small TO-92 package, rated for 45&nbsp;V and 800&nbsp;mA, with good gain at hundreds of milliamps. That 800&nbsp;mA rating is unusual for a TO-92 part: the more common BC557/BC547 and 2N3906/2N3904 pairs are rated for 100&ndash;200&nbsp;mA, too little for Q1 here.</p>
+      <p>Q2 only carries Q1's base current (tens of mA) so almost any small NPN would do. Using a BC337 is mostly convenience. The suffix (-16, -25, -40) marks the gain group; -40 parts have the most gain.</p>
+    </div></details>
+
+    <details class="q"><summary>What exactly does R1 do?</summary><div class="a">
+      <p>R1 connects Q1's base to its emitter. When Q2 stops pulling current, R1 pulls Q1's base back up to the emitter voltage, so Q1's base-emitter voltage is zero and it is firmly off. It also gives Q1's stored base charge a path out, shortening the <a href="#q-saturation">storage time</a>.</p>
+      <p>Without R1, Q1's base would float when Q2 turned off. Leakage current through Q1's collector-base junction would then be amplified by Q1's gain, Q1 would partly conduct, and turn-off would be slow and lossy, especially when hot.</p>
+      <p>R1 also wastes a little drive: with Q1 on, it carries 0.8&nbsp;V / 1&nbsp;k&Omega; = 0.8&nbsp;mA that does not go into Q1's base. A smaller R1 turns Q1 off faster but needs more drive from Q2.</p>
+    </div></details>
+
+    <details class="q"><summary>What exactly does R2 do?</summary><div class="a">
+      <p>R2 sets how much current Q2 pulls out of Q1's base. With Q1 on, the voltage across R2 is the supply minus Q1's V<sub>BE</sub>, minus Q2's small collector-emitter drop, minus the output (because Q2's emitter is on the output): 14 &minus; 0.8 &minus; 0.1 &minus; 5 &asymp; 8.1&nbsp;V. Through 470&nbsp;&Omega; that is about 17&nbsp;mA. Subtract R1's 0.8&nbsp;mA and Q1 gets about 16&nbsp;mA of base current.</p>
+      <p>Too large an R2 and Q1 is underdriven: it leaves saturation at high currents and runs hot. Too small and you waste drive current, increase Q1's storage time, and allow bigger start-up and fault currents.</p>
+      <p>Without R2, Q2 would connect Q1's base almost directly to the output, and the current would be limited only by the two transistors' gains: a reliable way to destroy one of them.</p>
+    </div></details>
+
+    <details class="q" id="q-emitter"><summary>Why does Q2's emitter go to the output rather than to ground?</summary><div class="a">
+      <p>That connection <em>is</em> the voltage sensing. Q2 turns on when its base is about 0.62&nbsp;V above its emitter. With the base held at the zener voltage and the emitter on the output, Q2 conducts exactly when the output is below V<sub>Z</sub> &minus; 0.62&nbsp;V. No divider, no separate comparator, no op-amp: the transistor's own base-emitter junction does the comparison.</p>
+      <p>A useful side effect: Q1's base drive current (about 17&nbsp;mA during the on-time) flows through Q2 into the output, not into ground. It is delivered to the load, so it isn't entirely wasted. You can see this in the original phase 1 drawing, where the "base current path" ends at the output.</p>
+    </div></details>
+
+    <details class="q"><summary>What does RZ do? It looks like a plain bias resistor.</summary><div class="a">
+      <p>It has three jobs at once:</p>
+      <ol>
+        <li><strong>Bias the zener</strong>: supply enough current that the zener is in regulation. At 14&nbsp;V that's (14 &minus; 5.6)/1&nbsp;k&Omega; = 8.4&nbsp;mA.</li>
+        <li><strong>Supply Q2's base current</strong> while Q2 is on (well under 1&nbsp;mA).</li>
+        <li><strong>Set the off-time</strong>: after each turn-off, RZ is the only thing recharging C1 and C2. Its current sets how long the off period lasts: t<sub>off</sub> &asymp; C2 &middot; &Delta;V<sub>A</sub> / I<sub>RZ</sub>.</li>
+      </ol>
+      <p>That third role is easy to miss, and it means changing RZ changes the switching frequency.</p>
+    </div></details>
+
+    <details class="q"><summary>What does C1 do?</summary><div class="a">
+      <p>C1 sits directly across the zener. Its jobs:</p>
+      <ul>
+        <li><strong>Limit C2's kick.</strong> C1 and C2 form a capacitive divider, so C1 decides how much of node A's 14&nbsp;V swing reaches Q2's base. With C1 ten times C2, about 1/11 of it does (1.3&nbsp;V).</li>
+        <li><strong>Steady the reference.</strong> Zeners are electrically noisy, especially near their knee. C1 filters that noise.</li>
+        <li><strong>Provide charge.</strong> When C2's kick arrives, C1 supplies the charge (phase 2's "C1 discharges into C2") so that node Z moves by a controlled amount.</li>
+      </ul>
+    </div></details>
+
+    <details class="q" id="q-c1-small"><summary>What happens if C1 is too small, or missing?</summary><div class="a">
+      <p>Then nearly the entire 14&nbsp;V swing of node A reaches Q2's base. On turn-off, Z would be dragged to around &minus;8&nbsp;V while Q2's emitter is at +5&nbsp;V: 13&nbsp;V of reverse bias across a junction rated for 5&nbsp;V (V<sub>EBO</sub> for the BC337). The junction breaks down (it acts like a zener), which limits the damage, but repeated emitter-base breakdown slowly degrades a transistor's gain. The simulator flags this case ("Tiny C1" preset).</p>
+      <p>A rule of thumb from the arithmetic: keep (V<sub>in</sub> + V<sub>F</sub>) &middot; C2/(C1 + C2) below about V<sub>Z</sub> &minus; V<sub>out</sub> + 5&nbsp;V &asymp; 5.6&nbsp;V. At 14&nbsp;V in, that means C1 &gt; 1.6 &times; C2. A factor of 10 gives plenty of margin, and also gives margin if you later raise the input voltage.</p>
+      <p>Note that C1 does not affect the off-time (see <a href="#c2">the derivation</a>), so you can change it freely for these reasons without retuning the frequency.</p>
+    </div></details>
+
+    <details class="q"><summary>What does C2 do, in one paragraph?</summary><div class="a">
+      <p>It couples the big voltage swing at node A back into Q2's base. That gives positive feedback (clean, fast switching), a temporary reverse bias on Q2 after each turn-off (noise immunity), and a timed off period while RZ recharges it (setting the frequency). See <a href="#c2">the full section</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>What would happen with no C2 at all?</summary><div class="a">
+      <p>The circuit would lose its positive feedback and its timer. Q2 would act as a plain high-gain amplifier driving Q1, and Q1 would spend much more time in its active region. Depending on exact parts and layout, you would get one of: slow, irregular oscillation with soft edges and hot transistors; oscillation at a high, uncontrolled frequency set by stray delays; or Q1 sitting half-on as a linear regulator, overheating. None of those is good. C2 is the component that turns the circuit from "an amplifier with an inductor on it" into a switching regulator.</p>
+      <p>The simulator's "Tiny C2" preset shows the frequency soaring to hundreds of kHz, but its comparator is an ideal switch, so it cannot show the half-on heating that a real circuit without C2 would suffer.</p>
+    </div></details>
+
+    <details class="q"><summary>Why is D1 needed? Couldn't the inductor just stop?</summary><div class="a">
+      <p>Current in an inductor cannot stop instantly. If Q1 turned off with nowhere for the current to go, the inductor would produce whatever voltage it takes to keep it flowing: hundreds of volts, negative, at node A, which would break down Q1 in the first cycle. D1 gives the current a path: from ground, up through D1, through L1, into the load. It is called the <strong>freewheel</strong>, <strong>flywheel</strong> or <strong>catch</strong> diode.</p>
+      <p>D1 is also where the energy stored during the on-time is delivered to the load during the off-time. It isn't just protection; it is half of the power path.</p>
+    </div></details>
+
+    <details class="q" id="q-schottky"><summary>Why should D1 be a Schottky diode? Would a 1N4001 work?</summary><div class="a">
+      <p>Two reasons, and the second is the important one.</p>
+      <ol>
+        <li><strong>Forward voltage.</strong> D1 carries the full load current for 60&ndash;65&nbsp;% of every cycle. A Schottky drops 0.3&ndash;0.45&nbsp;V; a silicon rectifier drops 0.8&ndash;1&nbsp;V. At 250&nbsp;mA, that is the difference between about 50&nbsp;mW and 140&nbsp;mW lost.</li>
+        <li><strong>Reverse recovery.</strong> A normal silicon diode like the 1N4001 stores charge while conducting and takes several microseconds to stop conducting when reversed. When Q1 turns on, that diode is briefly a short circuit from node A to ground: Q1 dumps a large current spike straight through it. That wastes power, stresses Q1, and creates noise. A Schottky has essentially no stored charge, so it switches off instantly.</li>
+      </ol>
+      <p>A 1N4001 might "work" at very light loads, but it is the wrong part. If you have no Schottky, a fast-recovery diode (UF4001, 1N4148 for very small currents) is a better substitute than a 1N400x.</p>
+    </div></details>
+
+    <details class="q"><summary>Why is the output capacitor called CLOAD?</summary><div class="a">
+      <p>The original author's name for it: the capacitor that sits across the load. Elsewhere you would see it called C<sub>out</sub> or the output filter capacitor. It averages the inductor's triangular current into a steady output voltage, and supplies sudden load demands until the regulator can respond.</p>
+    </div></details>
+
+    <details class="q" id="q-esr"><summary>What is ESR and why does it matter so much here?</summary><div class="a">
+      <p><strong>Equivalent Series Resistance</strong> is the small resistance in series with every real capacitor, from its leads, plates and electrolyte. A general-purpose aluminium electrolytic might have 0.1&ndash;1&nbsp;&Omega;; a low-ESR type 0.02&ndash;0.1&nbsp;&Omega;; a ceramic a few milliohms.</p>
+      <p>The inductor's ripple current flows through it, so the ESR creates a ripple voltage in step with the inductor current: &Delta;V = &Delta;I<sub>L</sub> &times; ESR. In most regulators that is only a nuisance. In this one it is part of the control loop, because Q2 decides when to turn off by watching the output voltage. A clean triangle of ripple, in phase with the inductor current, gives Q2 a clear, timely signal.</p>
+      <ul>
+        <li><strong>Too much ESR</strong> (1&nbsp;&Omega; or more): large ripple, roughly 150&nbsp;mV p-p in the simulator's "High-ESR cap" preset, and a lower average output.</li>
+        <li><strong>Too little ESR</strong> (all-ceramic output): the ripple becomes tiny and is the integral of the inductor current, so it lags. The on-time can extend, the inductor current grows, and the frequency becomes irregular. The off-time timer helps, but you lose the clean ripple-terminated on-time. The cure is a few tenths of an ohm in series with a ceramic, or simply using an ordinary electrolytic.</li>
+      </ul>
+    </div></details>
+
+    <details class="q"><summary>Why is the zener 5.6 V when the output is 5 V?</summary><div class="a">
+      <p>Because the output settles one base-emitter drop below the zener voltage: 5.6&nbsp;V &minus; 0.62&nbsp;V &asymp; 4.98&nbsp;V. See <a href="#why5">why the output lands at 5 V</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>Does the zener current change during the cycle?</summary><div class="a">
+      <p>Yes, a lot, and the original drawings show it. In phases 1 and 4 (Z clamped at 5.6&nbsp;V) the zener carries most of RZ's current. In phases 2 and 3 (Z knocked below 5.6&nbsp;V) the zener carries nothing at all: all of RZ's current goes into recharging C1 and C2. That's why the phase 2 and 3 drawings have no zener current arrow. During phase 4 the zener briefly carries an extra surge, absorbing C2's upward kick.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Cycle -->
+  <div class="faq-group" id="faq-cycle">
+    <h3>The switching cycle</h3>
+
+    <details class="q"><summary>Why does node A go below ground?</summary><div class="a">
+      <p>When Q1 turns off, the inductor is still carrying current toward the output. Nothing is supplying it from the 14&nbsp;V side any more, so the inductor pulls node A down, as far as it takes to find a path. The first path it finds is D1, which starts conducting when its anode (ground) is about 0.35&nbsp;V above its cathode (A). So A stops at about &minus;0.35&nbsp;V. With a silicon diode it would be about &minus;0.8&nbsp;V.</p>
+    </div></details>
+
+    <details class="q"><summary>The original says "C1 discharges into C2" during turn-off. What does that mean physically?</summary><div class="a">
+      <p>Just before turn-off, C1 has 5.6&nbsp;V across it, and C2 has (13.8 &minus; 5.6) = 8.2&nbsp;V across it (Z side negative relative to A). Node A then falls by 14.15&nbsp;V. For C2's voltage not to change instantly, Z would have to fall by 14.15&nbsp;V too, but Z is also attached to C1, which resists. The two capacitors share charge until they agree: charge flows out of C1, through node Z, into C2's left plate. C1's voltage drops by 1.3&nbsp;V; C2's voltage changes by the remaining 12.85&nbsp;V. That flow is the blue arrow in the phase 2 drawing.</p>
+    </div></details>
+
+    <details class="q"><summary>And "RZ current charges C2" in the same phase?</summary><div class="a">
+      <p>RZ is always feeding current into node Z. Once Z drops below the zener voltage, the zener stops conducting, and RZ's current has nowhere to go except into the capacitors on node Z. Part of it goes into C1 and part through C2 toward node A. Both arrows in phases 2 and 3 are this same recharge, which continues until Z is back at 5.6&nbsp;V.</p>
+    </div></details>
+
+    <details class="q"><summary>Why is phase 3 called the "delay period"?</summary><div class="a">
+      <p>Because Q2 is locked off for a set time regardless of the output. Q2's base starts about 0.7&nbsp;V below its emitter and must climb to 0.62&nbsp;V above it before Q2 can turn on. The output's own fall contributes only tens of millivolts of that 1.3&nbsp;V; RZ recharging Z provides the rest. So the off period is effectively a timer, and phase 3 is that timer running.</p>
+    </div></details>
+
+    <details class="q"><summary>Why does the major current keep flowing to the load while Q1 is off?</summary><div class="a">
+      <p>Energy stored in the inductor's magnetic field during the on-time. During the off-time the inductor acts as a source, pushing current out into the load and pulling it up from ground through D1. Its current gradually falls as that energy is delivered. Before it has fallen very far, Q1 turns on again and tops it up. The current never stops (at normal loads); it just swings up and down in a triangle around the load current.</p>
+    </div></details>
+
+    <details class="q"><summary>Which is faster, turning on or turning off? Why?</summary><div class="a">
+      <p>Turn-on. Before Q1 can turn off, the excess charge in its saturated base must be removed (<a href="#q-saturation">storage time</a>), typically a few hundred nanoseconds with these parts. Turn-on has no equivalent delay: as soon as base current flows, collector current starts. The asymmetry is built into the simulator (0.1&nbsp;&micro;s on, 0.4&nbsp;&micro;s off).</p>
+    </div></details>
+
+    <details class="q"><summary>Why does the output overshoot the threshold a little every cycle?</summary><div class="a">
+      <p>Two delays. First, Q1's storage time keeps it on for a few hundred nanoseconds after Q2 decides to turn it off, during which the inductor current keeps climbing. Second, even after Q1 turns off, the inductor current is still above the load current, so the output capacitor keeps charging until the inductor current has fallen back to the load current. The output peaks partway into the off period. This overshoot is part of the ripple and is perfectly normal.</p>
+    </div></details>
+
+    <details class="q"><summary>Can the circuit get stuck on or stuck off?</summary><div class="a">
+      <p>Stuck <strong>on</strong> happens when the output can't reach the threshold: input voltage too low (dropout), load too heavy (Q1 out of drive), or output shorted. This is the dangerous case, since Q1 then carries everything and nothing limits it.</p>
+      <p>Stuck <strong>off</strong> is unlikely in normal operation: RZ always recharges Z eventually. It could happen if the output were held above the threshold by something external (another supply back-feeding it), which is harmless, or if RZ were open circuit or the zener shorted.</p>
+    </div></details>
+
+    <details class="q"><summary>What happens at power-on?</summary><div class="a">
+      <p>Everything starts at zero. As the supply rises, RZ charges C1 and C2 and Z rises. As soon as Z reaches about 0.6&nbsp;V, Q2 conducts (its emitter is on the output, still at 0&nbsp;V), Q1 turns on, and A jumps up, kicking Z up further. Q2's base-emitter junction clamps Z about 0.8&nbsp;V above the output, and the zener clamps it at 5.6&nbsp;V.</p>
+      <p>Q1 now stays on continuously while the output is below the threshold. The inductor current ramps up and keeps ramping, because the output is low and the voltage across the inductor is large. It is eventually limited only by Q1's gain times its base drive. With the representative parts the simulator shows about 2&nbsp;A for a few hundred microseconds. When the output finally reaches 4.98&nbsp;V, normal switching takes over, with a small overshoot as the large inductor current dies away. Reducing this inrush is one of the most useful improvements; see <a href="#q-softstart">soft start</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>What is the difference between continuous and discontinuous conduction?</summary><div class="a">
+      <p>In <strong>continuous conduction mode</strong> (CCM), the inductor current never reaches zero: it swings, for example, between 0.15 and 0.33&nbsp;A. That is the normal case at moderate loads.</p>
+      <p>When the load current is less than half the ripple current (below about 90&nbsp;mA here), the inductor current reaches zero before the off period ends. D1 stops conducting, and node A, no longer connected to anything firmly, rings around the output voltage with the inductor and stray capacitances. That is <strong>discontinuous conduction mode</strong> (DCM). Regulation still works; the waveforms just look messier. In this circuit the jump of node A from &minus;0.35&nbsp;V up toward 5&nbsp;V as D1 stops conducting also couples a small upward kick into Z through C2, which shortens the off-time, so the frequency rises at light load.</p>
+    </div></details>
+
+    <details class="q"><summary>Does it still work with no load at all?</summary><div class="a">
+      <p>Yes. Q1's base drive current, which flows through Q2 into the output, acts as a small load (a few milliamps averaged), so the circuit still switches, delivering short pulses. The output may creep up a little because there is nothing to pull it down between pulses except CLOAD's leakage and that drive current. A small resistor across the output (a few k&Omega;) keeps things tidy, and many designs include one as a minimum load.</p>
+    </div></details>
+
+    <details class="q"><summary>How does it react if the load suddenly increases?</summary><div class="a">
+      <p>Quickly. The extra current initially comes out of CLOAD, so the output dips. At the next decision point Q2 sees the lower output, and the following on-time is extended (Q1 stays on until the output recovers), so the inductor current ramps up to meet the new demand within a cycle or two. Hysteretic regulators are known for very fast load response, because there is no error amplifier with a slow compensation network to wait for: each cycle reacts directly to the output voltage.</p>
+    </div></details>
+
+    <details class="q"><summary>How does it react if the input voltage changes?</summary><div class="a">
+      <p>The on-time shortens automatically when the input rises (the inductor current climbs faster, so the threshold is reached sooner), and the off-time shortens slightly too (RZ's current rises with the input). The average output barely moves; the simulator shows under 20&nbsp;mV of change from 9 to 24&nbsp;V in. The frequency, though, roughly triples over the same range.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Numbers -->
+  <div class="faq-group" id="faq-numbers">
+    <h3>Numbers and performance</h3>
+
+    <details class="q"><summary>What switching frequency does it run at?</summary><div class="a">
+      <p>It depends on your parts. With the representative values, about 85&nbsp;kHz at 14&nbsp;V in. The relationship is f &asymp; (1 &minus; D) / t<sub>off</sub> with t<sub>off</sub> &asymp; C2 &middot; &Delta;V<sub>A</sub> / I<sub>RZ</sub>. Halve C2 and the frequency roughly doubles.</p>
+      <p>Keep the frequency where the BC327 can switch cleanly. Since the turn-off delay is a few hundred nanoseconds, 20&ndash;100&nbsp;kHz is a comfortable range. At several hundred kHz, Q1's transitions become a significant fraction of each cycle and switching losses rise.</p>
+    </div></details>
+
+    <details class="q"><summary>Why isn't the frequency constant, and is that a problem?</summary><div class="a">
+      <p>Because there's no clock, only a timer for the off period. The on-time is whatever it takes to restore the output. For most uses a changing frequency is fine. It matters for radio receivers and audio equipment (a switching frequency or its harmonics can land on a sensitive frequency), and for meeting EMC regulations, where a fixed frequency is easier to filter and certify.</p>
+    </div></details>
+
+    <details class="q"><summary>How accurate is the output voltage?</summary><div class="a">
+      <p>It is set by a zener (typically &plusmn;5&nbsp;% tolerance, &plusmn;2&nbsp;% for the better grades) minus a V<sub>BE</sub> (which varies about &plusmn;50&nbsp;mV between parts and drifts &minus;2&nbsp;mV/&deg;C). Expect the output to be within roughly &plusmn;5&nbsp;% of nominal from one build to the next. Once built, it is stable: load and line changes move it by only tens of millivolts. If you need better initial accuracy, use a <a href="#q-tl431">TL431 reference</a> or trim with a pot.</p>
+    </div></details>
+
+    <details class="q"><summary>What does load regulation and line regulation mean, and how good are they?</summary><div class="a">
+      <p><strong>Load regulation</strong>: how much the output changes as the load current changes. <strong>Line regulation</strong>: how much it changes as the input voltage changes. Both are good here, because the output is always being driven to the same threshold. In the simulator, the output moves by under 10&nbsp;mV from 100 to 500&nbsp;mA, and under 20&nbsp;mV from 9 to 24&nbsp;V in. A real build will be somewhat worse, from the zener's dynamic resistance (its voltage rises slightly with current, and RZ's current rises with the input) and from Q2's V<sub>BE</sub> changing slightly with its collector current.</p>
+    </div></details>
+
+    <details class="q"><summary>How much ripple is on the output?</summary><div class="a">
+      <p>With the representative parts, about 18&nbsp;mV peak-to-peak, nearly all from CLOAD's ESR. The formula is &Delta;V &asymp; &Delta;I<sub>L</sub> &times; ESR + &Delta;I<sub>L</sub> / (8 &middot; f &middot; C). On top of that you will see narrow spikes at each switching edge, caused by fast current changes in the wiring; these are usually much bigger on a scope than they really are, see <a href="#q-probe">measuring with a scope</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>How efficient is it?</summary><div class="a">
+      <p>Around 80&nbsp;% at 250&nbsp;mA with the representative parts, rising toward the mid 80s at heavier loads and falling sharply at light loads. At 10&nbsp;mA it is around 25&nbsp;%, because RZ and the zener waste about 120&nbsp;mW regardless of load. A dedicated buck controller IC would typically reach 85&ndash;92&nbsp;%. Compared with a linear regulator at 14&nbsp;V to 5&nbsp;V (36&nbsp;% at best), it is a huge improvement at any useful load.</p>
+    </div></details>
+
+    <details class="q"><summary>Why is the input current smaller than the output current?</summary><div class="a">
+      <p>Energy is conserved. Power in = power out + losses. If 1.24&nbsp;W goes out at 5&nbsp;V, and the losses are about 0.27&nbsp;W, then 1.51&nbsp;W must come in at 14&nbsp;V: 1.51 / 14 = 0.108&nbsp;A, against 0.25&nbsp;A out. The inductor acts as a sort of "DC transformer": it converts high voltage and low current into low voltage and high current. The extra output current comes from D1 during the off-time, which is current that never passed through the supply.</p>
+    </div></details>
+
+    <details class="q"><summary>How hot do the parts get?</summary><div class="a">
+      <p>At 250&nbsp;mA: Q1 dissipates roughly 20&nbsp;mW conduction plus 20&ndash;60&nbsp;mW switching (warm at most). D1, about 50&nbsp;mW (barely warm). RZ, about 75&nbsp;mW (a 0.25&nbsp;W resistor is fine). The zener, about 50&nbsp;mW. Nothing needs a heatsink. At 500&ndash;700&nbsp;mA, Q1 gets noticeably warm (a TO-92 can dissipate about 0.6&nbsp;W in free air at 25&nbsp;&deg;C). If Q1 is hot to touch at moderate load, it is probably not saturating; check R2.</p>
+    </div></details>
+
+    <details class="q"><summary>What is the maximum output current?</summary><div class="a">
+      <p>Practically, about 500&ndash;600&nbsp;mA with a BC327 as Q1, so that the peak inductor current (load plus half the ripple) stays below its 800&nbsp;mA rating with margin, and Q1 stays saturated with the base drive R2 provides. The inductor must also be rated for that peak current without saturating (see <a href="#q-inductor-choice">choosing an inductor</a>). For more current, see <a href="#q-more-current">getting more current</a>.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Build -->
+  <div class="faq-group" id="faq-build">
+    <h3>Building and testing</h3>
+
+    <details class="q" id="q-inductor-choice"><summary>What kind of inductor should I use?</summary><div class="a">
+      <p>A <strong>power inductor</strong>: a ferrite drum ("dog-bone") or toroid with a few dozen turns of fairly thick wire. Check three numbers on the datasheet:</p>
+      <ul>
+        <li><strong>Inductance</strong>: 100&ndash;470&nbsp;&micro;H suits this circuit at tens of kHz. More inductance means less ripple current.</li>
+        <li><strong>Saturation current</strong> (I<sub>sat</sub>): must exceed your peak inductor current, with margin. Above it, the core saturates, inductance falls off a cliff and current spikes. Keep in mind the start-up peak is higher than the running peak.</li>
+        <li><strong>DC resistance</strong> (DCR): the lower the better; 0.1&ndash;0.5&nbsp;&Omega; is typical at this size.</li>
+      </ul>
+      <p>Avoid the tiny resistor-shaped "RF chokes" in the same values: their saturation current is often only tens of milliamps. Salvaged inductors from old PC power supplies and motherboards are often ideal.</p>
+    </div></details>
+
+    <details class="q"><summary>What kind of capacitors should I use for C1 and C2?</summary><div class="a">
+      <p>Small ceramic (X7R) or film (polyester/MKT) types. C2 sees the full input voltage swing, so it needs a voltage rating above your maximum input (50&nbsp;V is a convenient value). C1 only sees about 6&nbsp;V. Avoid Y5V/Z5U ceramics for C2: their capacitance varies dramatically with voltage and temperature, and since C2 sets the off-time, the frequency would wander. NP0/C0G or film are the most stable.</p>
+    </div></details>
+
+    <details class="q"><summary>Can I build it on a breadboard?</summary><div class="a">
+      <p>Yes, at these frequencies and currents it will work, and it is how many people first see it running. Expect more switching noise and ringing than on a PCB, because breadboard strips add inductance and capacitance. Keep the "hot loop" short: the path from the input supply's decoupling capacitor, through Q1, through D1, back to ground. That loop carries sharp-edged current and is the main source of noise. Twist or keep close the supply leads, and put a 10&ndash;100&nbsp;&micro;F electrolytic plus a 100&nbsp;nF ceramic across the 14&nbsp;V input right at the circuit.</p>
+    </div></details>
+
+    <details class="q"><summary>Do I need an input capacitor? There's none on the drawing.</summary><div class="a">
+      <p>You should add one. Q1 draws current from the supply in sharp-edged pulses: about 0.3&nbsp;A for 38&nbsp;% of the time and nothing for the rest. The input wiring has inductance, so those pulses create voltage spikes and drops at the circuit's supply pins, and broadcast noise back along the supply leads. A capacitor right at the circuit (an electrolytic of tens of &micro;F plus a 100&nbsp;nF ceramic) supplies the pulses locally, so the supply leads carry only the smooth average. The drawings are diagrams of the principle and leave it out for clarity.</p>
+    </div></details>
+
+    <details class="q" id="q-probe"><summary>How should I measure it with an oscilloscope?</summary><div class="a">
+      <ul>
+        <li><strong>Node A</strong> (the square wave) is the best first look: it shows frequency, duty cycle, and the cleanliness of the edges. Use DC coupling, 5&nbsp;V/div.</li>
+        <li><strong>Node Z</strong> shows the sawtooth timer (it should resemble the original <code>cro.jpg</code>). Use AC coupling or a 1&nbsp;V/div DC setting with the trace offset.</li>
+        <li><strong>Output ripple</strong>: AC coupling, 10&ndash;20&nbsp;mV/div, and the bandwidth limit switched on.</li>
+        <li><strong>Inductor current</strong>: put a 0.1&nbsp;&Omega; resistor in series with the inductor's output end and measure across it (1&nbsp;mV per 10&nbsp;mA), or use a current probe.</li>
+      </ul>
+      <p>Use the short spring ground clip on the probe tip, not the long ground lead with the crocodile clip. The long lead forms a loop antenna that picks up the switching fields and shows enormous fake spikes on the ripple, which is the most common measurement mistake on switching supplies.</p>
+    </div></details>
+
+    <details class="q" id="q-dummy"><summary>How does the dummy load in the photo work, and how do I make one?</summary><div class="a">
+      <p>The photo shows a TO-220 power transistor, a potentiometer and a big wirewound resistor. The transistor acts as an adjustable current sink: the pot sets its base current (or base voltage), which sets how much current flows through it, and the power resistor in series takes a share of the heat so the transistor doesn't have to dissipate it all. Turning the pot sweeps the load from nothing to the full rated current, which is invaluable for seeing how the regulator responds to load changes.</p>
+      <p>A simpler and more stable version uses a power MOSFET or an NPN with a small emitter resistor (for example 1&nbsp;&Omega;), and a pot from a fixed voltage driving the base or gate: the current is then roughly (pot voltage &minus; V<sub>BE</sub>) / R<sub>emitter</sub>, independent of the supply voltage. Mount the transistor on a heatsink; at 5&nbsp;V and 0.5&nbsp;A it dissipates up to 2.5&nbsp;W.</p>
+      <p>The simplest option of all is just a power resistor: 10&nbsp;&Omega; draws 0.5&nbsp;A at 5&nbsp;V and dissipates 2.5&nbsp;W, so it needs a 5&nbsp;W rating.</p>
+    </div></details>
+
+    <details class="q"><summary>It doesn't oscillate. What should I check?</summary><div class="a">
+      <ol>
+        <li>Is the zener the right way round? Its cathode (the barred end) goes to Z. Backwards, it acts as an ordinary diode and holds Z at 0.7&nbsp;V.</li>
+        <li>Are Q1 and Q2 the right way round? TO-92 pinouts differ: the BC327/BC337 is usually C-B-E reading left to right with the flat face toward you, which is the opposite of the 2N3904/2N3906 (E-B-C). Check the datasheet for your exact part.</li>
+        <li>Is C2 actually connected between Z and A? Without it, the circuit doesn't snap; see <a href="#faq-parts">what happens without C2</a>.</li>
+        <li>Is the output stuck at the input voltage? Q1 is shorted or stuck on, or Q2 is wired so it's always on.</li>
+        <li>Is the output at 0&nbsp;V? Q1 not turning on: check R2, Q2, and that RZ is feeding the zener.</li>
+        <li>Is the output at about 5&nbsp;V but there's no switching on node A? The load may be too light (it switches in occasional bursts) or Q1 may be acting as a linear regulator; touch it to see if it's hot.</li>
+      </ol>
+    </div></details>
+
+    <details class="q"><summary>Q1 is getting hot. Why?</summary><div class="a">
+      <p>The likely reasons, roughly in order: (1) Q1 isn't saturating because it isn't getting enough base current: check R2 and that Q2 is fully on; (2) D1 is a slow silicon diode causing a current spike every turn-on, see <a href="#q-schottky">Schottky</a>; (3) the switching edges are slow because C2 is missing, too small or open; (4) the load is too heavy or the output is shorted; (5) the inductor is saturating, causing large current peaks.</p>
+    </div></details>
+
+    <details class="q"><summary>The switching frequency is wildly different from the calculation. Why?</summary><div class="a">
+      <p>Check C2's actual value (ceramic capacitors can be 20&ndash;80&nbsp;% below their marking at voltage, especially Y5V types) and RZ. Also check whether the circuit is in discontinuous mode (light load), where the frequency rises, or whether the output capacitor has very low ESR, which can make the on-time irregular. Finally, check you are measuring the fundamental, not a burst repetition rate: at light loads the circuit can produce groups of pulses with gaps between them.</p>
+    </div></details>
+
+    <details class="q"><summary>Is a 14 V supply safe to work with?</summary><div class="a">
+      <p>Yes, 14&nbsp;V can't give you a dangerous shock. The hazards are burns from overheated parts (a shorted output can make Q1 or wiring very hot quickly), electrolytic capacitors fitted backwards (they can vent), and the power source itself: a car battery can deliver hundreds of amps into a short, enough to melt wires. Always put a fuse in series with a battery supply. Never adapt this circuit to run from mains voltage.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Modify -->
+  <div class="faq-group" id="faq-modify">
+    <h3>Changing it</h3>
+
+    <details class="q"><summary>How do I get a different output voltage?</summary><div class="a">
+      <p>Change the zener: V<sub>out</sub> &asymp; V<sub>Z</sub> &minus; 0.62&nbsp;V. For 3.3&nbsp;V use a 3.9&nbsp;V zener; for 9&nbsp;V use a 9.1 or 10&nbsp;V zener; for 12&nbsp;V use 12 or 13&nbsp;V. Keep the input at least about 3&nbsp;V above the output so Q1 can saturate and RZ can supply the zener. Recheck RZ's current: (V<sub>in</sub> &minus; V<sub>Z</sub>)/RZ should stay above a few mA. Low-voltage zeners (below about 4.7&nbsp;V) have soft knees and are less precise, so a TL431 is better there.</p>
+    </div></details>
+
+    <details class="q"><summary>Can I make the output adjustable?</summary><div class="a">
+      <p>Yes. Several ways, from simplest:</p>
+      <ul>
+        <li>Put a few diodes in series with the zener (each adds about 0.6&nbsp;V) and switch them in and out: coarse steps.</li>
+        <li>Feed Q2's emitter from a divider on the output rather than the output itself, so Q2 sees a fraction of the output. The output then becomes (V<sub>Z</sub> &minus; V<sub>BE</sub>) &times; (divider ratio). Q1's base drive current then flows through the divider, so keep the divider low in resistance, or buffer it.</li>
+        <li>Replace the zener with a <a href="#q-tl431">TL431 adjustable reference</a> and a pot.</li>
+      </ul>
+    </div></details>
+
+    <details class="q" id="q-tl431"><summary>Can I use a TL431 instead of the zener?</summary><div class="a">
+      <p>Yes, and it's a good upgrade. A TL431 is an IC "programmable zener" with a 2.5&nbsp;V internal reference and much better accuracy (&plusmn;0.5&ndash;2&nbsp;%) and temperature stability than a zener. Wired with two resistors, it acts like a zener whose voltage you set: V = 2.5&nbsp;V &times; (1 + R<sub>top</sub>/R<sub>bottom</sub>). Use a pot for one resistor and the output is adjustable. It needs at least 1&nbsp;mA of current, which RZ already supplies. Keep C1 across it, but check the TL431 datasheet's stability chart: some values of capacitance directly across a TL431 can make it oscillate on its own.</p>
+    </div></details>
+
+    <details class="q" id="q-more-current"><summary>How do I get more output current?</summary><div class="a">
+      <ul>
+        <li><strong>Bigger Q1</strong>: a BD140 or BD136 (1.5&nbsp;A), a TIP32 or TIP42 (3&ndash;6&nbsp;A) or similar power PNP. These have lower gain at high current, so reduce R2 to supply more base current (forced beta around 10&ndash;20), and accept that Q2 then carries more current too.</li>
+        <li><strong>A P-channel MOSFET</strong> for Q1: lower losses, faster switching, no storage time. Its gate must be driven between the supply and about 10&nbsp;V below it; at 14&nbsp;V most parts can take the full supply on the gate, but above about 18&nbsp;V you need a zener to clamp the gate-source voltage. R1 becomes the gate pull-up and R2 the gate drive resistor. Gate capacitance makes turn-off slower with large R1, so values drop to the hundreds of ohms.</li>
+        <li><strong>Bigger D1</strong> (a 3&nbsp;A Schottky such as the 1N5822) and an inductor rated for the higher peak current.</li>
+      </ul>
+      <p>Don't skip <a href="#q-current-limit">current limiting</a> at higher currents: the damage from a short grows with the current available.</p>
+    </div></details>
+
+    <details class="q" id="q-current-limit"><summary>How can I add short-circuit or current limiting?</summary><div class="a">
+      <p>A classic addition: put a small sense resistor (for example 1&nbsp;&Omega; for about 0.6&nbsp;A) between the +14&nbsp;V rail and Q1's emitter, and a small PNP transistor with its emitter on the rail and its base at Q1's emitter. When the voltage across the sense resistor exceeds about 0.6&nbsp;V, the extra PNP turns on and pulls Q1's base toward its emitter, starving Q1 of drive. That gives cycle-by-cycle current limiting. With this circuit's positive feedback, it is better if the limit transistor's collector also pulls Z down (through a resistor), so the limit triggers a proper turn-off and off period rather than a slow linear-mode current limit.</p>
+      <p>A simpler fallback is a fuse or a polyfuse (PTC resettable fuse) on the input, which protects the wiring and supply but not necessarily Q1.</p>
+    </div></details>
+
+    <details class="q" id="q-softstart"><summary>Can I add a soft start?</summary><div class="a">
+      <p>Yes. The aim is to make the reference rise slowly at power-on, so the output follows it up rather than Q1 slamming the inductor current to its limit. Making C1 much bigger (for example 10&nbsp;&micro;F) slows Z's rise: Z charges through RZ with time constant RZ &times; C1 = 10&nbsp;ms. As C1 doesn't affect the off-time, this costs nothing in normal operation. The only side effect is that the C2 kick becomes very small (about 1/2000 of the swing), so you lose most of the snap-off reverse bias; C2 still gives positive feedback but with less margin. A compromise is a separate larger capacitor fed through a diode, or simply a few &micro;F for C1.</p>
+    </div></details>
+
+    <details class="q" id="q-rz-bigger"><summary>Can I make RZ bigger to save power?</summary><div class="a">
+      <p>Up to a point. Doubling RZ halves its standing loss (to about 60&nbsp;mW at 14&nbsp;V), but:</p>
+      <ul>
+        <li>it also halves the recharge current, so the off-time doubles and the frequency halves (unless you also halve C2);</li>
+        <li>the zener current falls to about 4&nbsp;mA, closer to its soft knee, making the reference less precise;</li>
+        <li>at low input voltages RZ may no longer supply enough current to the zener at all.</li>
+      </ul>
+      <p>If you increase RZ, reduce C2 by the same factor to keep the frequency. Watch that C1 is still at least ten times C2.</p>
+    </div></details>
+
+    <details class="q"><summary>Can I run it from 24 V, or 9 V?</summary><div class="a">
+      <p><strong>24&nbsp;V:</strong> yes, with care. RZ dissipates (24 &minus; 5.6)<sup>2</sup>/1&nbsp;k&Omega; = 0.34&nbsp;W, so use a 0.5&nbsp;W resistor or raise RZ (then shrink C2). C2 must be rated above 24&nbsp;V. The duty cycle drops to about 22&nbsp;% and the frequency rises to about 130&nbsp;kHz. The C2 kick grows to 2.2&nbsp;V, still safely below Q2's emitter-base limit.</p>
+      <p><strong>9&nbsp;V:</strong> yes. The duty cycle rises to about 60&nbsp;% and the frequency falls to about 38&nbsp;kHz. Efficiency improves (less voltage to drop). RZ's current falls to about 3.4&nbsp;mA, which is adequate. Below about 8&nbsp;V you approach dropout.</p>
+      <p>Try both with the simulator's "24 V in" and "9 V in" presets.</p>
+    </div></details>
+
+    <details class="q"><summary>Can I use it as a constant-current LED driver?</summary><div class="a">
+      <p>Yes, with a change to what Q2 senses. Put the LEDs in place of the load, with a small sense resistor in series from the LEDs to ground. Instead of comparing the output voltage with the zener, compare the sense resistor's voltage with a reference. In the simplest version, Q2's base is driven from a low reference (a couple of diodes) and its emitter goes to the top of the sense resistor, so the regulator holds the sense voltage at about (reference &minus; 0.62&nbsp;V). Many hobby LED drivers are built exactly this way. A buck regulator is especially well suited to LEDs, because the inductor current is the LED current.</p>
+    </div></details>
+
+    <details class="q"><summary>Can it make a negative voltage, or step up?</summary><div class="a">
+      <p>Not as drawn: it is a buck (step-down) converter. The same control idea (a transistor comparator with capacitor feedback from the switch node) can drive a boost or inverting topology, but the power stage must be rearranged and the sensing reworked. For a quick negative supply, a charge pump driven from node A is simpler: two capacitors and two diodes can produce roughly &minus;(V<sub>in</sub> &minus; 1.5&nbsp;V) at small currents.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Fail -->
+  <div class="faq-group" id="faq-fail">
+    <h3>Failure and safety</h3>
+
+    <details class="q"><summary>What happens if the output is short-circuited?</summary><div class="a">
+      <p>The output can never reach the threshold, so Q2 and Q1 stay on continuously. The inductor current ramps up until Q1 runs out of base drive, at roughly h<sub>FE</sub> &times; 28&nbsp;mA, which could be 1.5&ndash;7&nbsp;A depending on the individual transistor. Q1 then sits in its active region with nearly 14&nbsp;V across it and that current through it. It will overheat within milliseconds to seconds. Expect a dead BC327. Fit a fuse, and see <a href="#q-current-limit">current limiting</a>.</p>
+    </div></details>
+
+    <details class="q"><summary>What happens if Q1 fails short?</summary><div class="a">
+      <p>Node A is then permanently connected to the 14&nbsp;V input, and the output rises to 14&nbsp;V (through the inductor). Anything on the 5&nbsp;V output that can't tolerate 14&nbsp;V will be damaged. This is the main hazard of any non-isolated buck converter. A common protection is a "crowbar": a zener of about 6.2&nbsp;V and a thyristor (SCR) across the output, which shorts the output (and blows the input fuse) if the voltage climbs too high.</p>
+    </div></details>
+
+    <details class="q"><summary>What happens if the zener fails?</summary><div class="a">
+      <p>Open circuit: nothing clamps Z, so Z rises toward Q2's base-emitter clamp and the output rises until Q2 runs out of control range, potentially to near the input voltage. Short circuit: Z is held at 0&nbsp;V, Q2 never turns on, and the output stays at 0&nbsp;V. The first is dangerous to the load, the second only annoying.</p>
+    </div></details>
+
+    <details class="q"><summary>What happens if the input is connected backwards?</summary><div class="a">
+      <p>The "+14 V" rail is now 14 V <em>below</em> ground. D1 (from ground up to node A) and Q1's collector-base junction (from node A up to Q1's base, which R1 ties to the rail) are both forward biased, in series, straight across the reversed supply. Nothing limits that current, so D1 or Q1 fails within moments, and if the supply can deliver amps, wiring gets hot too. The zener is also forward biased, but RZ limits its current. A series diode, or a P-MOSFET reverse-polarity protection circuit on the input, prevents all of this.</p>
+    </div></details>
+
+    <details class="q"><summary>Is it safe to use in a car?</summary><div class="a">
+      <p>Not as drawn. Car electrical systems produce "load dump" transients of 40&nbsp;V or more when a battery connection is broken while the alternator is charging, plus fast spikes from ignition and motors. Those can exceed Q1's and D1's ratings. Automotive designs add a TVS diode across the input, an input filter, reverse-polarity protection, current limiting, and parts rated for at least 60&nbsp;V. As a learning circuit on a bench supply, it is fine.</p>
+    </div></details>
+
+    <details class="q"><summary>Will it interfere with radios?</summary><div class="a">
+      <p>It can. Every switching edge contains harmonics extending into the MHz range, and node A's fast 14&nbsp;V swing is a strong source. Keep the hot loop small, keep node A's copper area small, use a shielded (closed-core) inductor, add input filtering, and put the circuit in a metal box if it powers anything with an antenna. The varying frequency spreads the noise, which reduces peaks but makes it harder to avoid a specific frequency.</p>
+    </div></details>
+  </div>
+
+  <!-- ------------------------------------------------ Context -->
+  <div class="faq-group" id="faq-context">
+    <h3>Context and comparisons</h3>
+
+    <details class="q"><summary>Who is Roman Black and why is it named after him?</summary><div class="a">
+      <p>Roman Black is an electronics designer who published this circuit, along with many other minimalist designs, on his website. The drawings carry the address <code>www.romanblack.com/smps.htm</code>, which is the original source; it is worth reading for his own description and build notes. "Black regulator" is simply the name people use for this design, after him.</p>
+    </div></details>
+
+    <details class="q"><summary>Why build this instead of using a regulator IC like an LM2596 or MC34063?</summary><div class="a">
+      <p>For a product, you usually would use an IC: it gives current limiting, thermal shutdown, soft start, a precise reference and better efficiency, in one part. The reasons to build this circuit are understanding (every function of a switching regulator is visible in discrete parts you can probe), availability (it can be built entirely from common parts in a junk box), cost, and the satisfaction of a working switching supply with two transistors. The MC34063, incidentally, uses a related idea: a fixed oscillator but a simple comparator-gated switch rather than PWM.</p>
+    </div></details>
+
+    <details class="q"><summary>Is this the same as a "hysteretic" or "bang-bang" regulator?</summary><div class="a">
+      <p>It belongs to the same family. A pure hysteretic regulator switches on below one output voltage and off above another. This one has one threshold plus a timed off-period, so the more precise name is a <strong>constant off-time</strong> (COT) regulator. All of these are "ripple-based" controls: they react directly to the output ripple each cycle, rather than averaging an error over many cycles as a PWM regulator does.</p>
+    </div></details>
+
+    <details class="q"><summary>How is it different from a regular PWM buck controller?</summary><div class="a">
+      <p>A PWM controller has a fixed-frequency clock, an error amplifier that compares the output to a reference and slowly integrates the difference, and a modulator that sets each cycle's duty from the amplifier output. That loop needs careful compensation to stay stable, and responds to load changes over several cycles. A ripple regulator like this one has no error amplifier and no compensation, is inherently stable in its own way, and reacts within one cycle, but has a variable frequency and depends on the output ripple to work.</p>
+    </div></details>
+
+    <details class="q"><summary>Why not just use a linear regulator and a heatsink?</summary><div class="a">
+      <p>At 14&nbsp;V to 5&nbsp;V and 0.25&nbsp;A, a 7805 would dissipate 2.25&nbsp;W and draw 3.5&nbsp;W from the supply. This circuit draws about 1.5&nbsp;W for the same output and needs no heatsink. That matters when running from a battery, or inside a sealed box. A linear regulator is quieter and simpler, so for small currents or small voltage differences it is often the better choice.</p>
+    </div></details>
+
+    <details class="q"><summary>Why is the original input 14 V?</summary><div class="a">
+      <p>Probably as a representative "nominal 12&nbsp;V" supply: a car or lead-acid battery while charging sits around 13.8&ndash;14.4&nbsp;V, and many unregulated 12&nbsp;V wall adaptors deliver 14&nbsp;V or more at light load. The circuit works over a wide range either side.</p>
+    </div></details>
+
+    <details class="q"><summary>Is this simulator the same as SPICE?</summary><div class="a">
+      <p>No. SPICE solves the full nonlinear equations of every device. This simulator models each part by its key behaviour (switch, comparator, clamp) and integrates only the inductor, the output capacitor and node Z. It's good enough to show the mechanism and predict frequency, duty cycle and ripple within roughly 10&ndash;20&nbsp;%, but it can't show switching losses, ringing or linear-mode behaviour. To go further, LTspice (free) has models for the BC327, BC337 and 1N5819, and this circuit is a good first SMPS simulation.</p>
+    </div></details>
+  </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ PART III -->
+
+<section id="design">
+  <div class="sec-head">
+    <p class="eyebrow">Part III &middot; 1</p>
+    <h2>Worked design example: choosing every value</h2>
+    <p>How the representative values on this page were picked, in the order you would pick them. Target: 14 V in, 5 V out, 250 mA nominal, 500 mA maximum, around 50&ndash;100 kHz.</p>
+  </div>
+  <div class="prose">
+    <ol>
+      <li><strong>Zener</strong>: V<sub>Z</sub> = V<sub>out</sub> + V<sub>BE</sub> &asymp; 5 + 0.62 = 5.62&nbsp;V &rarr; a standard <b>5.6&nbsp;V</b> part.</li>
+      <li><strong>RZ</strong>: aim for 5&ndash;10&nbsp;mA zener current at the lowest input voltage you expect. (14 &minus; 5.6) / 8.4&nbsp;mA &asymp; <b>1&nbsp;k&Omega;</b>. Power: 8.4&nbsp;mA &times; 8.4&nbsp;V &asymp; 71&nbsp;mW: 0.25&nbsp;W resistor.</li>
+      <li><strong>Q1 base drive (R2)</strong>: peak Q1 current is about 0.6&nbsp;A at maximum load. For solid saturation, use a forced beta of 20&ndash;40: I<sub>B</sub> &asymp; 15&ndash;30&nbsp;mA. With 8.1&nbsp;V across R2: 8.1&nbsp;V / 17&nbsp;mA &asymp; <b>470&nbsp;&Omega;</b>.</li>
+      <li><strong>R1</strong>: small enough to pull Q1's base charge out quickly, large enough not to steal much drive: about 10&times; R2 or less. <b>1&nbsp;k&Omega;</b> steals 0.8&nbsp;mA, under 5&nbsp;% of the drive.</li>
+      <li><strong>Off-time and C2</strong>: choose a target frequency, say 85&nbsp;kHz. With D &asymp; 0.38, t<sub>off</sub> = (1 &minus; D)/f &asymp; 7.3&nbsp;&micro;s. Then C2 = t<sub>off</sub> &middot; I<sub>RZ</sub> / &Delta;V<sub>A</sub> = 7.3&nbsp;&micro;s &times; 9&nbsp;mA / 14.15&nbsp;V &asymp; 4.6&nbsp;nF &rarr; <b>4.7&nbsp;nF</b>, 50&nbsp;V, C0G or film.</li>
+      <li><strong>C1</strong>: at least 10&times; C2 so the kick on Z stays around a volt and well inside Q2's 5&nbsp;V emitter-base limit: <b>47&nbsp;nF</b>. Kick = 14.15 &times; 4.7/51.7 &asymp; 1.29&nbsp;V.</li>
+      <li><strong>L1</strong>: choose the ripple current, typically 20&ndash;50&nbsp;% of full load. &Delta;I<sub>L</sub> = (V<sub>out</sub> + V<sub>F</sub>) &middot; t<sub>off</sub> / L. For about 180&nbsp;mA (36&nbsp;% of 500&nbsp;mA): L = 5.33 &times; 7.3&nbsp;&micro;s / 0.18 &asymp; 216&nbsp;&micro;H &rarr; <b>220&nbsp;&micro;H</b>, rated for I<sub>sat</sub> &gt; 0.8&nbsp;A.</li>
+      <li><strong>D1</strong>: average current up to (1 &minus; D) &times; 0.5&nbsp;A &asymp; 0.31&nbsp;A, reverse voltage 14&nbsp;V: a <b>1N5819</b> (1&nbsp;A, 40&nbsp;V Schottky) has plenty of margin.</li>
+      <li><strong>CLOAD</strong>: ripple is dominated by ESR, so choose by ESR first: for 20&nbsp;mV ripple at 180&nbsp;mA, ESR &le; 0.11&nbsp;&Omega;. A <b>220&nbsp;&micro;F, 10&ndash;16&nbsp;V low-ESR</b> electrolytic typically has about 0.1&nbsp;&Omega;. Check its ripple-current rating exceeds &Delta;I<sub>L</sub>/&radic;12 &asymp; 52&nbsp;mA RMS (easily met).</li>
+      <li><strong>Check Q2's base</strong>: Q2 carries about 17&nbsp;mA; with a gain of 200 its base needs about 0.09&nbsp;mA from RZ's 8.4&nbsp;mA. Ample.</li>
+      <li><strong>Check start-up</strong>: Q1's maximum current at start-up is about h<sub>FE</sub> &times; 28&nbsp;mA. With a high-gain BC327-40 this can exceed its 800&nbsp;mA rating. Accept the risk for a bench circuit, or add <a href="#q-softstart">soft start</a> or <a href="#q-current-limit">current limiting</a>.</li>
+    </ol>
+  </div>
+  <div class="note">
+    <p class="eyebrow">Try it</p>
+    <p>Set your own values in the <a href="#sim">simulator</a> and compare its frequency, ripple and peak current readouts with your hand calculation. Agreement within 10&nbsp;% means your model of the circuit is right.</p>
+  </div>
+</section>
+
+<section id="glossary">
+  <div class="sec-head">
+    <p class="eyebrow">Part III &middot; 2</p>
+    <h2>Glossary</h2>
+  </div>
+  <dl class="gloss">
+    <dt>Buck converter</dt><dd>A switching regulator that produces a lower DC voltage than its input, using a switch, a diode (or second switch), an inductor and a capacitor.</dd>
+    <dt>Catch / freewheel diode</dt><dd>D1. Carries the inductor current while the switch is off.</dd>
+    <dt>CCM / DCM</dt><dd>Continuous / discontinuous conduction mode: whether the inductor current stays above zero all cycle, or falls to zero for part of it.</dd>
+    <dt>Comparator</dt><dd>A circuit whose output is either on or off depending on which of two inputs is higher. Q2 compares V(Z) &minus; V<sub>BE</sub> with the output.</dd>
+    <dt>Constant off-time (COT)</dt><dd>A control method where the switch stays off for a fixed time, then on until the output reaches a threshold.</dd>
+    <dt>Conventional current</dt><dd>Current imagined as flowing from + to &minus;. Used on all schematics.</dd>
+    <dt>CRO</dt><dd>Cathode-ray oscilloscope. Now used loosely for any oscilloscope.</dd>
+    <dt>DCR</dt><dd>DC resistance of an inductor's winding.</dd>
+    <dt>Duty cycle (D)</dt><dd>The fraction of each switching period the switch is on.</dd>
+    <dt>ESR</dt><dd>Equivalent series resistance of a capacitor. Converts ripple current into ripple voltage.</dd>
+    <dt>Forced beta</dt><dd>Collector current divided by the base current actually supplied. Well below h<sub>FE</sub> means the transistor is saturated.</dd>
+    <dt>h<sub>FE</sub> (&beta;)</dt><dd>A bipolar transistor's DC current gain: collector current over base current in the active region.</dd>
+    <dt>High-side switch</dt><dd>A switch between the positive supply and the load (as opposed to low-side, between load and ground).</dd>
+    <dt>Hot loop</dt><dd>The physical loop carrying sharp-edged current: input capacitor, Q1, D1, ground. Keep it small.</dd>
+    <dt>Hysteresis</dt><dd>Different switching thresholds depending on direction, to prevent chatter.</dd>
+    <dt>Inrush</dt><dd>The large current at power-on while capacitors charge.</dd>
+    <dt>I<sub>sat</sub></dt><dd>The current at which an inductor's core saturates and its inductance drops sharply.</dd>
+    <dt>Node</dt><dd>A set of connected conductors, all at one voltage.</dd>
+    <dt>Positive feedback</dt><dd>Feedback that reinforces a change, making a circuit snap between states.</dd>
+    <dt>Reverse recovery</dt><dd>The time a conducting PN diode takes to stop conducting when reversed. Schottky diodes have essentially none.</dd>
+    <dt>Ripple</dt><dd>The small AC variation riding on a DC output, at the switching frequency.</dd>
+    <dt>Saturation (BJT)</dt><dd>A transistor driven fully on, with minimal collector-emitter voltage.</dd>
+    <dt>Saturation (inductor)</dt><dd>A different thing: the core can hold no more magnetic flux and the inductance collapses.</dd>
+    <dt>Schmitt trigger</dt><dd>A comparator with built-in hysteresis.</dd>
+    <dt>Schottky diode</dt><dd>A metal-semiconductor diode with low forward voltage and no reverse-recovery charge.</dd>
+    <dt>Storage time</dt><dd>The delay before a saturated bipolar transistor starts turning off.</dd>
+    <dt>Switch node</dt><dd>Node A: the junction of switch, diode and inductor, which swings the full supply.</dd>
+    <dt>V<sub>BE</sub></dt><dd>Base-emitter voltage. About 0.6&ndash;0.7&nbsp;V when a silicon transistor conducts.</dd>
+    <dt>V<sub>CE(sat)</sub></dt><dd>Collector-emitter voltage of a saturated transistor.</dd>
+    <dt>V<sub>EBO</sub></dt><dd>The maximum reverse voltage a transistor's emitter-base junction can take, about 5&nbsp;V for small transistors.</dd>
+    <dt>Volt-second balance</dt><dd>In steady state, the inductor's average voltage is zero: (V across it when on) &times; t<sub>on</sub> = (V across it when off) &times; t<sub>off</sub>.</dd>
+    <dt>Zener diode</dt><dd>A diode meant to conduct at a defined reverse voltage, used as a voltage reference.</dd>
+  </dl>
+</section>
+
+<section id="originals">
+  <div class="sec-head">
+    <p class="eyebrow">Part III &middot; 3</p>
+    <h2>Original drawings</h2>
+    <p>The four phase drawings as supplied, together, so you can compare them side by side.</p>
+  </div>
+  <div class="gallery">
+    <figure><img src="img/smps_p1.gif" width="635" height="426" alt="Phase 1, on: original drawing."><figcaption>Phase 1: On</figcaption></figure>
+    <figure><img src="img/smps_p2.gif" width="635" height="426" alt="Phase 2, turn off: original drawing."><figcaption>Phase 2: Turn off</figcaption></figure>
+    <figure><img src="img/smps_p3.gif" width="635" height="426" alt="Phase 3, off delay period: original drawing."><figcaption>Phase 3: Off (delay period)</figcaption></figure>
+    <figure><img src="img/smps_p4.gif" width="635" height="426" alt="Phase 4, turn on: original drawing."><figcaption>Phase 4: Turn on</figcaption></figure>
+  </div>
+  <footer>
+    <p>Circuit and original drawings by Roman Black, from <a href="https://www.romanblack.com/smps.htm" rel="noopener">romanblack.com/smps.htm</a>. Explanation, redrawn schematic, simulator and representative component values are this page's own; the values are illustrative and not taken from the original build.</p>
+    <p><a href="#top">Back to the top</a></p>
+  </footer>
+</section>
+
+</main>
+</div>
+
+<script src="sim.js"></script>
+<script>
+(function () {
+  'use strict';
+  var css = function (name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); };
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------------------------------------------------------------- schematic phases */
+  var KINDS = {
+    major: { color: '--p-major', label: 'Major (load) current' },
+    drive: { color: '--p-drive', label: 'Q1 base drive, through R2 and Q2 into the output' },
+    reg:   { color: '--p-reg',   label: 'Q2 base current, from RZ' },
+    zen:   { color: '--p-zen',   label: 'Zener current, from RZ' },
+    cap:   { color: '--p-cap',   label: '' }
+  };
+  var ON_MAJOR = '40,50 450,50 450,120 418,140 418,160 450,180 450,270 620,270 700,270 700,420 40,420';
+  var LOOP = '700,420 450,420 450,270 620,270 700,270 700,420';
+  var DRIVE = '450,52 450,120 418,140 418,150 380,150 380,230 340,250 340,270 380,290 380,316 620,316';
+  var R1P = '380,50 380,150';
+  var PHASES = {
+    1: {
+      title: 'Phase 1: On',
+      text: '<p>Q2 conducts because Z (5.6 V) is more than 0.62 V above the output. Its collector pulls about 17 mA out of Q1\'s base through R2, so Q1 saturates. Node A sits near +13.8 V and the inductor current ramps up into the load. Most of RZ\'s current goes through the zener; a little goes into Q2\'s base.</p>',
+      flows: [['major', ON_MAJOR], ['drive', DRIVE], ['drive', R1P], ['reg', '96,52 96,266 330,266 340,270 380,290'], ['zen', '84,52 84,418']],
+      capLabel: null,
+      volts: { Z: '5.60 V', A: '+13.8 V', B: '4.97↑4.98 V' }
+    },
+    2: {
+      title: 'Phase 2: Turn-off',
+      text: '<p>The output reaches the threshold, Q2 lets go, and after its storage time Q1 turns off. The inductor drags node A down to −0.35 V, where D1 catches it. C2 copies that 14 V drop to Z, which C1 limits to about 1.3 V. Q2\'s base is now below its emitter: the turn-off locks itself in.</p>',
+      flows: [['major', LOOP], ['cap', '160,334 160,260 220,260 220,350 450,350'], ['reg', '90,52 90,256 214,256 214,344 450,344']],
+      capLabel: 'C1 shares charge with C2 as A falls',
+      regLabel: 'RZ current into C2 (zener now off)',
+      volts: { Z: '5.6→4.3 V', A: '13.8→−0.35 V', B: '4.99 V (peak)' }
+    },
+    3: {
+      title: 'Phase 3: Off (delay)',
+      text: '<p>The inductor current circulates through D1, L1 and the load and slowly falls. RZ recharges C1 and C2, ramping Z back up from 4.3 V toward 5.6 V. The zener carries nothing. Q2 stays off until V(Z) − V(out) climbs back to 0.62 V, about 7 µs later.</p>',
+      flows: [['major', LOOP], ['cap', '84,52 84,256 160,256 160,334'], ['reg', '96,52 96,264 214,264 214,344 450,344']],
+      capLabel: 'RZ charging C1',
+      regLabel: 'RZ charging C2',
+      volts: { Z: '4.3↗5.6 V', A: '−0.35 V', B: '4.99↘4.97 V' }
+    },
+    4: {
+      title: 'Phase 4: Turn-on',
+      text: '<p>Z has recovered, Q2 conducts, and Q1 turns on. Node A leaps to +13.8 V and C2 pushes that edge into Z, turning Q2 on even harder. The surge is absorbed by the zener and Q2\'s base-emitter junction. D1 switches off, and the circuit is back in phase 1.</p>',
+      flows: [['major', ON_MAJOR], ['drive', DRIVE], ['cap', '450,270 450,356 226,356 226,266 330,266 340,270 380,290'], ['cap', '220,262 96,262 96,418'], ['zen', '84,52 84,418']],
+      capLabel: 'C2 pushes A\'s rising edge into the zener and Q2\'s base',
+      volts: { Z: '5.60 V (clamped)', A: '−0.35→13.8 V', B: '4.97 V (min)' }
+    }
+  };
+  var VOLT_POS = { Z: [118, 250, '--sig-z'], A: [466, 296, '--sig-a'], B: [556, 224, '--sig-vo'] };
+
+  var svgNS = 'http://www.w3.org/2000/svg';
+  var flowsG = document.getElementById('flows');
+  var voltsG = document.getElementById('volts');
+  var curPhase = 1;
+
+  function el(name, attrs) {
+    var e = document.createElementNS(svgNS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function showPhase(n) {
+    curPhase = n;
+    var ph = PHASES[n];
+    while (flowsG.firstChild) flowsG.removeChild(flowsG.firstChild);
+    ph.flows.forEach(function (f) {
+      var col = css(KINDS[f[0]].color);
+      flowsG.appendChild(el('polyline', { points: f[1], class: 'flow', stroke: col }));
+      flowsG.appendChild(el('polyline', { points: f[1], class: 'flow-ants', stroke: col }));
+    });
+    while (voltsG.firstChild) voltsG.removeChild(voltsG.firstChild);
+    Object.keys(ph.volts).forEach(function (k) {
+      var p = VOLT_POS[k];
+      var t = el('text', { x: p[0], y: p[1], class: 'volt', fill: css(p[2]) });
+      t.textContent = ph.volts[k];
+      voltsG.appendChild(t);
+      var bb = t.getBBox();
+      var r = el('rect', { x: bb.x - 3, y: bb.y - 1, width: bb.width + 6, height: bb.height + 2, rx: 3, class: 'volt-bg' });
+      voltsG.insertBefore(r, t);
+    });
+    document.getElementById('ph-title').textContent = ph.title;
+    document.getElementById('ph-text').innerHTML = ph.text;
+    var seen = {}, lg = document.getElementById('ph-legend');
+    lg.innerHTML = '';
+    ph.flows.forEach(function (f) {
+      var kind = f[0];
+      var label = KINDS[kind].label;
+      if (kind === 'cap') label = ph.capLabel;
+      if (kind === 'reg' && ph.regLabel) label = ph.regLabel;
+      if (seen[kind + label]) return;
+      seen[kind + label] = 1;
+      var li = document.createElement('li');
+      li.innerHTML = '<i style="background:' + css(KINDS[kind].color) + '"></i><span>' + label + '</span>';
+      lg.appendChild(li);
+    });
+    document.querySelectorAll('[data-phase]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(+b.dataset.phase === n));
+    });
+  }
+  document.querySelectorAll('[data-phase]').forEach(function (b) {
+    b.addEventListener('click', function () { stopPlay(); showPhase(+b.dataset.phase); });
+  });
+  var playTimer = null, playBtn = document.getElementById('play');
+  function stopPlay() { if (playTimer) { clearInterval(playTimer); playTimer = null; playBtn.setAttribute('aria-pressed', 'false'); playBtn.textContent = 'Cycle through phases automatically'; } }
+  playBtn.addEventListener('click', function () {
+    if (playTimer) { stopPlay(); return; }
+    playBtn.setAttribute('aria-pressed', 'true');
+    playBtn.textContent = 'Stop cycling';
+    playTimer = setInterval(function () { showPhase(curPhase % 4 + 1); }, 3200);
+  });
+
+  var PARTS = {
+    Q1: ['Q1 · BC327 PNP, the switch', 'Connects the 14 V supply to node A when Q2 pulls current out of its base. Driven into saturation so it drops only about 0.2 V when on. Its storage time (a few hundred ns) is why turn-off lags the decision. Without it: nothing reaches the output.'],
+    Q2: ['Q2 · BC337 NPN, the comparator', 'Base on the zener reference, emitter on the output. Conducts whenever the output is more than about 0.62 V below the zener voltage, and then pulls Q1 on through R2. Its emitter connection is the voltage sensing. Without it: no regulation at all.'],
+    RZ: ['RZ · 1 kΩ', 'Feeds about 8.4 mA to the zener, supplies Q2\'s base, and after every turn-off recharges C1 and C2. That recharge sets the off-time: t_off ≈ C2 · ΔV_A / I_RZ. Bigger RZ means lower frequency and lower standing loss.'],
+    ZENER: ['Zener · 5.6 V', 'The voltage reference. Clamps node Z, so the output settles at V_Z − 0.62 V ≈ 4.98 V. It carries current only while Z is clamped (phases 1 and 4). Change it to change the output voltage.'],
+    C1: ['C1 · 47 nF', 'Smooths the reference, and forms a divider with C2 that sets how far Z is kicked on each edge: ΔV_Z = ΔV_A · C2/(C1+C2) ≈ 1.3 V. Too small and Q2\'s emitter-base junction is driven into breakdown. It does not affect the off-time.'],
+    C2: ['C2 · 4.7 nF', 'Positive feedback from switch node A to Q2\'s base. Makes every transition snap, reverse-biases Q2 during the off period, and sets the off-time together with RZ. Without it Q1 lingers half-on and gets hot.'],
+    R1: ['R1 · 1 kΩ', 'Pulls Q1\'s base up to its emitter so Q1 turns off firmly, and drains Q1\'s stored base charge to shorten its storage time. Without it Q1 turns off slowly and leakage can partly turn it on.'],
+    R2: ['R2 · 470 Ω', 'Sets Q1\'s base drive: about (14 − 0.8 − 0.1 − 5) V / 470 Ω ≈ 17 mA. Enough to saturate Q1 at several hundred mA. That current flows through Q2 into the output, so it is not wasted entirely.'],
+    L1: ['L1 · 220 µH', 'Stores energy while Q1 is on and delivers it while Q1 is off. Its current ramps up at (V_A − V_out)/L and down at (V_out + V_F)/L, forming a triangle around the load current. Must be rated above the peak current.'],
+    D1: ['D1 · 1N5819 Schottky', 'The freewheel diode. When Q1 turns off, it carries the inductor current from ground up to node A. A Schottky because it has a low drop and no reverse-recovery spike when Q1 turns back on.'],
+    CLOAD: ['CLOAD · 220 µF electrolytic', 'Smooths the inductor\'s triangle of current into a steady voltage. Its ESR turns that triangle into the ripple Q2 watches to decide when to turn off, so its ESR is part of the control loop.'],
+    LOAD: ['The load', 'Whatever the regulator powers. On this page a 20 Ω resistor drawing 250 mA, drawn dashed because it isn\'t part of the regulator.']
+  };
+  var info = document.getElementById('part-info');
+  document.querySelectorAll('.schem .part').forEach(function (g) {
+    g.setAttribute('tabindex', '0');
+    g.setAttribute('role', 'button');
+    g.setAttribute('aria-label', PARTS[g.dataset.part][0]);
+    function pick() {
+      document.querySelectorAll('.schem .part.sel').forEach(function (x) { x.classList.remove('sel'); });
+      g.classList.add('sel');
+      var p = PARTS[g.dataset.part];
+      info.innerHTML = '<b></b><p></p>';
+      info.querySelector('b').textContent = p[0];
+      info.querySelector('p').textContent = p[1];
+    }
+    g.addEventListener('click', pick);
+    g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  });
+  showPhase(1);
+
+  /* ---------------------------------------------------------------- simulator UI */
+  function logScale(min, max) {
+    return {
+      toV: function (x) { return min * Math.pow(max / min, x / 1000); },
+      toX: function (v) { return Math.round(1000 * Math.log(v / min) / Math.log(max / min)); }
+    };
+  }
+  function linScale(min, max) {
+    return {
+      toV: function (x) { return min + (max - min) * x / 1000; },
+      toX: function (v) { return Math.round(1000 * (v - min) / (max - min)); }
+    };
+  }
+  function fmt(v, unit) {
+    if (v === 0) return '0\u202f' + unit;
+    var a = Math.abs(v), pre = [[1e-12, 'p'], [1e-9, 'n'], [1e-6, 'µ'], [1e-3, 'm'], [1, ''], [1e3, 'k']];
+    var p = pre[0];
+    for (var i = 0; i < pre.length; i++) if (a >= pre[i][0] * 0.9995) p = pre[i];
+    var n = v / p[0];
+    var s = n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2);
+    return s + ' ' + p[1] + unit;
+  }
+  var CTL = [
+    { id: 'vin',   label: 'Input voltage',  unit: 'V', sc: linScale(7, 30), round: 0.5, hint: 'Supply. Raises frequency, lowers duty cycle.' },
+    { id: 'rload', label: 'Load current',   unit: 'A', sc: logScale(5, 1000), show: function (r, p) { return fmt((p.vz - 0.62) / r, 'A') + ' (' + fmt(r, 'Ω') + ')'; }, hint: 'Set as a load resistance.' },
+    { id: 'c2',    label: 'C2',             unit: 'F', sc: logScale(0.1e-9, 22e-9), hint: 'Sets the off-time with RZ.' },
+    { id: 'c1',    label: 'C1',             unit: 'F', sc: logScale(1e-9, 470e-9), hint: 'Sets the kick depth only.' },
+    { id: 'rz',    label: 'RZ',             unit: 'Ω', sc: logScale(220, 10000), hint: 'Zener feed; recharges Z.' },
+    { id: 'vz',    label: 'Zener voltage',  unit: 'V', sc: linScale(3.3, 12), round: 0.1, hint: 'Output ≈ V_Z − 0.62 V.' },
+    { id: 'l',     label: 'L1',             unit: 'H', sc: logScale(22e-6, 1e-3), hint: 'Sets ripple current.' },
+    { id: 'cout',  label: 'CLOAD',          unit: 'F', sc: logScale(22e-6, 2200e-6), hint: 'Output smoothing.' },
+    { id: 'esr',   label: 'CLOAD ESR',      unit: 'Ω', sc: logScale(0.005, 2), hint: 'Turns ripple current into ripple voltage.' }
+  ];
+  var BASE = { vin: 14, rload: 20, c2: 4.7e-9, c1: 47e-9, rz: 1000, vz: 5.6, l: 220e-6, cout: 220e-6, esr: 0.1 };
+  var PRESETS = {
+    base: {},
+    heavy: { rload: 10 },
+    light: { rload: 500 },
+    v24: { vin: 24 },
+    v9: { vin: 9 },
+    smallc2: { c2: 0.22e-9 },
+    smallc1: { c1: 1.5e-9 },
+    badesr: { esr: 1.2 }
+  };
+  var params = Object.assign({}, BASE);
+  var slidersEl = document.getElementById('sliders');
+  slidersEl.style.display = 'grid';
+  slidersEl.style.gap = '12px';
+  CTL.forEach(function (c) {
+    var d = document.createElement('div');
+    d.className = 'ctl';
+    d.innerHTML = '<label for="s-' + c.id + '"><span>' + c.label + '</span><output id="o-' + c.id + '"></output></label>' +
+      '<input type="range" id="s-' + c.id + '" min="0" max="1000" step="1">' +
+      '<span class="hint">' + c.hint + '</span>';
+    slidersEl.appendChild(d);
+    var inp = d.querySelector('input');
+    inp.addEventListener('input', function () {
+      var v = c.sc.toV(+inp.value);
+      if (c.round) v = Math.round(v / c.round) * c.round;
+      params[c.id] = v;
+      syncLabels();
+      schedule();
+    });
+  });
+  function syncSliders() {
+    CTL.forEach(function (c) { document.getElementById('s-' + c.id).value = c.sc.toX(params[c.id]); });
+    syncLabels();
+  }
+  function syncLabels() {
+    CTL.forEach(function (c) {
+      document.getElementById('o-' + c.id).textContent = c.show ? c.show(params[c.id], params) : fmt(params[c.id], c.unit);
+    });
+  }
+  document.querySelectorAll('[data-preset]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      params = Object.assign({}, BASE, PRESETS[b.dataset.preset]);
+      syncSliders();
+      run();
+    });
+  });
+
+  var timer = null;
+  function schedule() { clearTimeout(timer); document.getElementById('sim-status').textContent = 'Simulating…'; timer = setTimeout(run, 140); }
+
+  var last = null;
+  function run() {
+    var t0 = performance.now();
+    last = window.BlackSim.simulate(params);
+    var ms = performance.now() - t0;
+    document.getElementById('sim-status').textContent = 'Simulated ' + (last.reachedAt > 0 ? fmt(last.reachedAt + 2.5e-3, 's') : '12 ms') + ' of circuit time in ' + ms.toFixed(0) + ' ms.';
+    renderReadout(last);
+    drawScope(last);
+    drawStartup(last);
+  }
+
+  function renderReadout(r) {
+    var s = r.stats, p = r.params;
+    var items = [
+      ['Frequency', s.f ? fmt(s.f, 'Hz') : '—'],
+      ['Duty cycle', (s.duty * 100).toFixed(1) + ' %'],
+      ['On / off', s.f ? fmt(s.ton, 's') + ' / ' + fmt(s.toff, 's') : '—'],
+      ['Output avg', s.vavg.toFixed(3) + ' V'],
+      ['Ripple p-p', fmt(s.ripple, 'V')],
+      ['I(L1) range', fmt(s.ilmin, 'A').replace('0.00 pA', '0') + ' – ' + fmt(s.ilmax, 'A')],
+      ['Input current', fmt(s.iin, 'A')],
+      ['Efficiency', (s.eff * 100).toFixed(1) + ' %'],
+      ['Z kick', fmt(s.zdrop, 'V')],
+      ['Start-up peak', fmt(r.startupPeak, 'A')]
+    ];
+    document.getElementById('readout').innerHTML = items.map(function (i) { return '<div><span>' + i[0] + '</span><b>' + i[1] + '</b></div>'; }).join('');
+    var w = [];
+    if (s.dropout) w.push('Dropout: the input is too low for the regulator to reach its set point. Q1 stays on continuously and the output simply follows what the supply and Q1\'s base drive allow.');
+    if (s.warnVebo) w.push('Q2\'s emitter-base junction is being driven into reverse breakdown on every turn-off (the kick on Z exceeds about 5.5 V below the output). Increase C1 relative to C2.');
+    if (s.warnLimit) w.push('Q1 is running out of base drive during normal operation and leaving saturation. It would run hot. Lower the load, or lower R2 in a real build.');
+    if (s.ilmax > 0.8) w.push('Peak inductor current is ' + fmt(s.ilmax, 'A') + ', above the BC327\'s 800 mA rating.');
+    if (r.startupPeak > 0.8 && !s.dropout) w.push('Start-up inrush reaches ' + fmt(r.startupPeak, 'A') + ' before the output arrives, beyond the BC327\'s rating. See the questions on soft start and current limiting.');
+    if (s.f > 250e3) w.push('Switching at ' + fmt(s.f, 'Hz') + ': a BC327 with a few hundred ns of storage time would have large switching losses here. The model does not count them.');
+    if (s.dcm && !s.dropout) w.push('Discontinuous conduction: the inductor current reaches zero each cycle. A real node A would ring at that moment; the model leaves the ringing out.');
+    document.getElementById('warns').innerHTML = w.map(function (t) { return '<p>' + t + '</p>'; }).join('');
+  }
+
+  function setupCanvas(cv) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx: ctx, w: w, h: h };
+  }
+  function niceTicks(min, max, n) {
+    var span = max - min || 1, step = Math.pow(10, Math.floor(Math.log10(span / n)));
+    var err = span / n / step;
+    if (err >= 7.5) step *= 10; else if (err >= 3.5) step *= 5; else if (err >= 1.5) step *= 2;
+    var out = [], v = Math.ceil(min / step) * step;
+    for (; v <= max + step * 1e-6; v += step) out.push(+v.toPrecision(12));
+    return { ticks: out, step: step };
+  }
+
+  function drawScope(r) {
+    var cv = document.getElementById('plot'), g = setupCanvas(cv), ctx = g.ctx;
+    var rec = r.rec, n = r.n, p = r.params;
+    if (!n) return;
+    // window: about four periods ending at the last rising edge, else the whole record tail
+    var i0 = 0, i1 = n - 1;
+    var e = r.edges;
+    if (e.length >= 6) { i1 = e[e.length - 1] + Math.round((e[e.length - 1] - e[e.length - 2]) * 0.15); i0 = e[e.length - 5] - Math.round((e[e.length - 1] - e[e.length - 2]) * 0.15); }
+    else if (e.length >= 2) { i0 = e[0]; i1 = n - 1; }
+    else { i0 = Math.max(0, n - Math.round(n * 0.05)); }
+    i0 = Math.max(0, i0); i1 = Math.min(n - 1, i1);
+    var t0 = rec.t[i0], t1 = rec.t[i1];
+    var font = css('--font-mono') || 'monospace';
+    var ink = css('--ink'), muted = css('--muted'), line = css('--line');
+    var padL = 64, padR = 12, padT = 6, gap = 10;
+    var lanes = [
+      { key: 'va', name: 'V(A)', unit: 'V', color: css('--sig-a'), h: 1 },
+      { key: 'vz', name: 'V(Z)', unit: 'V', color: css('--sig-z'), h: 1, ref: p.vz, refLabel: 'V_Z' },
+      { key: 'vbe', name: 'Q2 VBE', unit: 'V', color: css('--sig-be'), h: 1, ref: 0.62, refLabel: '0.62' },
+      { key: 'il', name: 'I(L1)', unit: 'A', color: css('--sig-il'), h: 1, ref: r.stats.iavg, refLabel: 'I_load' },
+      { key: 'vo', name: 'V(out)', unit: 'V', color: css('--sig-vo'), h: 1, ref: r.stats.vavg, refLabel: 'avg' }
+    ];
+    var axisH = 22;
+    var laneH = (g.h - padT - axisH - gap * (lanes.length - 1)) / lanes.length;
+    var plotW = g.w - padL - padR;
+    var step = Math.max(1, Math.floor((i1 - i0) / (plotW * 2)));
+    function val(key, i) { return key === 'vbe' ? rec.vz[i] - rec.vo[i] : rec[key][i]; }
+    ctx.font = '11px ' + font;
+    lanes.forEach(function (ln, li) {
+      var y0 = padT + li * (laneH + gap);
+      var mn = Infinity, mx = -Infinity;
+      for (var i = i0; i <= i1; i += step) { var v = val(ln.key, i); if (v < mn) mn = v; if (v > mx) mx = v; }
+      if (ln.ref !== undefined) { mn = Math.min(mn, ln.ref); mx = Math.max(mx, ln.ref); }
+      var pad = (mx - mn) * 0.12 || Math.abs(mx) * 0.01 || 0.01;
+      mn -= pad; mx += pad;
+      var Y = function (v) { return y0 + laneH - (v - mn) / (mx - mn) * laneH; };
+      // frame and grid
+      ctx.strokeStyle = line; ctx.lineWidth = 1;
+      ctx.strokeRect(padL + 0.5, y0 + 0.5, plotW, laneH);
+      var tk = niceTicks(mn, mx, 3);
+      ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      tk.ticks.forEach(function (v) {
+        var y = Math.round(Y(v)) + 0.5;
+        ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke(); ctx.globalAlpha = 1;
+        var lab = ln.unit === 'A' ? fmt(v, 'A') : (tk.step < 0.01 ? v.toFixed(3) : tk.step < 0.1 ? v.toFixed(2) : tk.step < 1 ? v.toFixed(1) : v.toFixed(0));
+        ctx.fillText(lab, padL - 6, y);
+      });
+      if (ln.ref !== undefined) {
+        ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = muted; ctx.beginPath();
+        var yr = Math.round(Y(ln.ref)) + 0.5; ctx.moveTo(padL, yr); ctx.lineTo(padL + plotW, yr); ctx.stroke(); ctx.restore();
+      }
+      // trace
+      ctx.strokeStyle = ln.color; ctx.lineWidth = 1.8; ctx.beginPath();
+      for (i = i0; i <= i1; i += step) {
+        var x = padL + (rec.t[i] - t0) / (t1 - t0) * plotW;
+        if (i === i0) ctx.moveTo(x, Y(val(ln.key, i))); else ctx.lineTo(x, Y(val(ln.key, i)));
+      }
+      ctx.stroke();
+      // lane label
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '600 11.5px ' + font;
+      var tw = ctx.measureText(ln.name).width;
+      ctx.fillStyle = css('--sunk'); ctx.globalAlpha = 0.85; ctx.fillRect(padL + 5, y0 + 4, tw + 8, 16); ctx.globalAlpha = 1;
+      ctx.fillStyle = ln.color; ctx.fillText(ln.name, padL + 9, y0 + 6);
+      ctx.font = '11px ' + font;
+    });
+    // time axis
+    var yAx = padT + lanes.length * (laneH + gap) - gap;
+    var tt = niceTicks(0, t1 - t0, 6);
+    ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    tt.ticks.forEach(function (v) {
+      var x = padL + v / (t1 - t0) * plotW;
+      ctx.fillText(fmt(v, 's').replace('0.00 ps', '0'), x, yAx + 5);
+    });
+  }
+
+  function drawStartup(r) {
+    var cv = document.getElementById('plot-start'), g = setupCanvas(cv), ctx = g.ctx;
+    var st = r.startup, n = st.t.length;
+    if (n < 2) return;
+    var font = css('--font-mono') || 'monospace';
+    var muted = css('--muted'), line = css('--line');
+    var padL = 64, padR = 64, padT = 26, padB = 22;
+    var w = g.w - padL - padR, h = g.h - padT - padB;
+    var tmax = st.t[n - 1];
+    var vmax = 0, imax = 0;
+    for (var i = 0; i < n; i++) { if (st.vo[i] > vmax) vmax = st.vo[i]; if (st.il[i] > imax) imax = st.il[i]; }
+    vmax = vmax * 1.1 || 1; imax = imax * 1.1 || 0.1;
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.strokeRect(padL + 0.5, padT + 0.5, w, h);
+    ctx.font = '11px ' + font;
+    var tv = niceTicks(0, vmax, 4), ti = niceTicks(0, imax, 4), tt = niceTicks(0, tmax, 6);
+    ctx.fillStyle = css('--sig-vo'); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    tv.ticks.forEach(function (v) { var y = padT + h - v / vmax * h; ctx.fillText(v.toFixed(tv.step < 1 ? 1 : 0) + ' V', padL - 6, y); ctx.globalAlpha = 0.4; ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(padL, Math.round(y) + 0.5); ctx.lineTo(padL + w, Math.round(y) + 0.5); ctx.stroke(); ctx.globalAlpha = 1; });
+    ctx.fillStyle = css('--sig-il'); ctx.textAlign = 'left';
+    ti.ticks.forEach(function (v) { var y = padT + h - v / imax * h; ctx.fillText(fmt(v, 'A').replace('0.00 pA', '0 A'), padL + w + 6, y); });
+    ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    tt.ticks.forEach(function (v) { ctx.fillText(fmt(v, 's').replace('0.00 ps', '0'), padL + v / tmax * w, padT + h + 5); });
+    function trace(arr, max, color) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath();
+      for (var i = 0; i < n; i++) { var x = padL + st.t[i] / tmax * w, y = padT + h - arr[i] / max * h; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+    }
+    trace(st.il, imax, css('--sig-il'));
+    trace(st.vo, vmax, css('--sig-vo'));
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '600 11.5px ' + font;
+    ctx.fillStyle = css('--ink');
+    ctx.fillText('Start-up from 0 V', padL, 6);
+    var x0 = padL + ctx.measureText('Start-up from 0 V').width + 16;
+    ctx.fillStyle = css('--sig-vo'); ctx.fillText('V(out)', x0, 6);
+    ctx.fillStyle = css('--sig-il'); ctx.fillText('I(L1), sampled every 10 µs', x0 + ctx.measureText('V(out)').width + 14, 6);
+  }
+
+  syncSliders();
+  // first run after layout so canvases have a size
+  requestAnimationFrame(function () { run(); });
+  var rt = null;
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (last) { drawScope(last); drawStartup(last); } }, 150); });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var redraw = function () { if (last) { drawScope(last); drawStartup(last); } showPhase(curPhase); };
+    if (mq.addEventListener) mq.addEventListener('change', redraw);
+    new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  /* ---------------------------------------------------------------- FAQ search */
+  var qs = Array.prototype.slice.call(document.querySelectorAll('#faq-body details.q'));
+  var groups = Array.prototype.slice.call(document.querySelectorAll('#faq-body .faq-group'));
+  var countEl = document.getElementById('faq-count');
+  qs.forEach(function (d) { d.dataset.text = d.textContent.toLowerCase(); });
+  function updateCount(shown) { countEl.textContent = (shown === undefined ? qs.length : shown) + ' of ' + qs.length + ' questions'; }
+  updateCount();
+  var search = document.getElementById('faq-search');
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase(), shown = 0;
+    var terms = q.split(/\s+/).filter(Boolean);
+    qs.forEach(function (d) {
+      var ok = terms.every(function (t) { return d.dataset.text.indexOf(t) >= 0; });
+      d.hidden = !ok;
+      if (ok) shown++;
+      d.open = ok && terms.length > 0 && shown <= 8 ? true : (terms.length ? false : d.open);
+    });
+    groups.forEach(function (g) { g.hidden = !g.querySelector('details.q:not([hidden])'); });
+    updateCount(shown);
+  });
+  document.getElementById('faq-open').addEventListener('click', function () { qs.forEach(function (d) { if (!d.hidden) d.open = true; }); });
+  document.getElementById('faq-close').addEventListener('click', function () { qs.forEach(function (d) { d.open = false; }); });
+  // open a question when linked to directly
+  function openHash() {
+    var id = location.hash.slice(1);
+    if (!id) return;
+    var t = document.getElementById(id);
+    if (t && t.tagName === 'DETAILS') t.open = true;
+  }
+  window.addEventListener('hashchange', openHash);
+  openHash();
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#q-"]');
+    if (a) { var t = document.getElementById(a.getAttribute('href').slice(1)); if (t) t.open = true; }
+  });
+
+  /* ---------------------------------------------------------------- contents highlight */
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var targets = tocLinks.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var idx = targets.indexOf(en.target);
+        tocLinks.forEach(function (a, i) { a.classList.toggle('on', i === idx); });
+      });
+    }, { rootMargin: '0px 0px -75% 0px' });
+    targets.forEach(function (t) { if (t) io.observe(t); });
+  }
+})();
+</script>
+</body>
+</html>
